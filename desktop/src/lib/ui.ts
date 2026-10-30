@@ -81,6 +81,9 @@ export interface UiState {
   sideBar: "leading" | "trailing" | null;
   /** The iPhone Duo's hinge while it is partly open, in CSS pixels. */
   fold: Fold | null;
+  /** The status bar sits in a top corner beside the camera (the iPhone Duo's
+   *  inner screen) instead of across the top. */
+  statusCorner: boolean;
   /** Bumped by the vertical bar's search button to open in-chat search. */
   chatSearch: number;
   /** The chat's ⋮ menu, opened from the vertical bar. */
@@ -134,6 +137,7 @@ export const ui = createStore<UiState>({
   viewer: null,
   sideBar: null,
   fold: null,
+  statusCorner: false,
   chatSearch: 0,
   chatMenuOpen: false,
   preview: null,

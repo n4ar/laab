@@ -97,7 +97,7 @@ export function useNativeTabbar(
     const root = document.documentElement.style;
     if (layout.topClear == null) root.removeProperty("--top-clear");
     else root.setProperty("--top-clear", `${layout.topClear}px`);
-    setUi({ sideBar: layout.edge ?? null, fold: layout.fold ?? null });
+    setUi({ sideBar: layout.edge ?? null, fold: layout.fold ?? null, statusCorner: layout.topClear === 0 });
   }, [layout]);
   useEffect(() => {
     if (!state) return;
