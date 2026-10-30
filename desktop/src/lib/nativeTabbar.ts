@@ -20,6 +20,21 @@ export interface SideButton {
   badge?: string | null;
 }
 
+/** A menu item; the native menu gets it without `run`, and answers with an
+ *  `action` of `menu:<id>`. */
+export interface MenuEntry {
+  id: string;
+  title: string;
+  /** SF Symbol name, for the native menu. */
+  icon?: string;
+  destructive?: boolean;
+  disabled?: boolean;
+  /** A checkmark item; left out for a plain one. */
+  checked?: boolean;
+  children?: MenuEntry[][];
+  run?: () => void;
+}
+
 export interface NativeTabState {
   tabs: NativeTab[];
   selected: string;
@@ -27,12 +42,12 @@ export interface NativeTabState {
   hidden: boolean;
   /** Hides only the bottom tab bar, for a chat pushed over the list. */
   bottomHidden?: boolean;
-  /** Left edge and width in CSS pixels; the full width when left out. */
-  x?: number;
-  width?: number;
-  /** Glass groups for the vertical bar, stacked from the top and from the
-   *  bottom. Used where iOS has one (the iPhone Duo's cover screen). */
+  /** Bar button groups for the vertical bar, the top ones first (back,
+   *  then actions). Used where iOS has one (the iPhone Duo). */
   side?: { top: SideButton[][]; bottom: SideButton[][] };
+  /** The page's menu, for the system overflow menu in the vertical bar.
+   *  `run` does not cross to iOS; JSON drops it. */
+  menu?: MenuEntry[][];
 }
 
 export interface Fold {
