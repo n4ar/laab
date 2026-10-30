@@ -615,7 +615,7 @@ function UpdateBar() {
 function PreviewChip({ chatId, active }: { chatId: string; active: boolean }) {
   return (
     <button
-      title="ดูแชทโดยไม่ส่งว่าอ่านแล้ว"
+      title="ดูโดยไม่ขึ้นว่าอ่านแล้ว"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation();
