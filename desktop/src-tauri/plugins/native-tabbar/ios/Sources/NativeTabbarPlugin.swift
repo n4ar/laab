@@ -17,7 +17,7 @@ struct TabArgs: Decodable {
 
 /// A bar button for the vertical bar. Tabs are sent as buttons with
 /// `selected` set too, and skipped: the tab bar shows them.
-struct SideButtonArgs: Decodable {
+struct SideButtonArgs: Codable {
   let id: String
   let icon: String
   let selectedIcon: String?
@@ -26,7 +26,7 @@ struct SideButtonArgs: Decodable {
 }
 
 /// The bar button groups for the vertical bar, the top ones first.
-struct SideArgs: Decodable {
+struct SideArgs: Codable {
   let top: [[SideButtonArgs]]
   let bottom: [[SideButtonArgs]]
 }
@@ -44,8 +44,15 @@ struct UpdateArgs: Decodable {
   let menu: [[MenuItemArgs]]?
 }
 
+/// What a tab's bar items are built from, to tell when they change.
+struct BarItems: Encodable {
+  let top: [[SideButtonArgs]]
+  let bottom: [[SideButtonArgs]]
+  let menu: [[MenuItemArgs]]
+}
+
 /// A menu item; choosing one sends the `action` `menu:<id>`.
-struct MenuItemArgs: Decodable {
+struct MenuItemArgs: Codable {
   let id: String
   let title: String
   /// SF Symbol name.
@@ -223,6 +230,14 @@ final class SystemBars: NSObject, UITabBarControllerDelegate {
   private let tabs = UITabBarController()
   private let content: UIViewController
   private var ids: [String] = []
+  /// The tabs' symbols as last set, and what each tab's bar items and the
+  /// tab bar's visibility were last built from. The page sends an update on
+  /// every change; replacing items that did not change makes iOS rebuild
+  /// them, which cuts short the tab bar's own animations (a press sliding
+  /// between tabs snaps instead of settling).
+  private var icons: [String] = []
+  private var built: [ObjectIdentifier: Data] = [:]
+  private var tabsHidden: Bool?
 
   init(content: UIViewController, window: UIWindow) {
     self.content = content
@@ -245,23 +260,30 @@ final class SystemBars: NSObject, UITabBarControllerDelegate {
     // The page draws its own headers; the navigation bar is only for the
     // buttons the vertical bar shows.
     let buttons = vertical && !args.hidden
-    nav.setNavigationBarHidden(!buttons, animated: false)
     let tabIds = Set(ids.map { "tab:\($0)" })
-    let top = (args.side?.top ?? []).filter { !$0.isEmpty }
-    let bottom = (args.side?.bottom ?? []).filter { g in !g.isEmpty && !g.contains { tabIds.contains($0.id) } }
-    host.navigationItem.leadingItemGroups = buttons ? top.map(group) : []
-    host.navigationItem.trailingItemGroups = buttons ? bottom.map(group) : []
+    let top = buttons ? (args.side?.top ?? []).filter { !$0.isEmpty } : []
+    let bottom = buttons ? (args.side?.bottom ?? []).filter { g in !g.isEmpty && !g.contains { tabIds.contains($0.id) } } : []
     // HIG: the page's own menu goes in the system overflow menu.
     let menu = buttons ? (args.menu ?? []).filter { !$0.isEmpty } : []
-    host.navigationItem.additionalOverflowItems =
-      menu.isEmpty
-      ? nil
-      : UIDeferredMenuElement.uncached { [weak self] done in done(self?.menuElements(menu) ?? []) }
+    let key = try? JSONEncoder().encode(BarItems(top: top, bottom: bottom, menu: menu))
+    if let key, built[ObjectIdentifier(host)] != key || nav.isNavigationBarHidden == buttons {
+      built[ObjectIdentifier(host)] = key
+      nav.setNavigationBarHidden(!buttons, animated: false)
+      host.navigationItem.leadingItemGroups = top.map(group)
+      host.navigationItem.trailingItemGroups = bottom.map(group)
+      host.navigationItem.additionalOverflowItems =
+        menu.isEmpty
+        ? nil
+        : UIDeferredMenuElement.uncached { [weak self] done in done(self?.menuElements(menu) ?? []) }
+    }
     let hideTabs = args.hidden || (args.bottomHidden ?? false)
-    if #available(iOS 18.0, *) {
-      tabs.setTabBarHidden(hideTabs, animated: true)
-    } else {
-      tabs.tabBar.isHidden = hideTabs
+    if hideTabs != tabsHidden {
+      tabsHidden = hideTabs
+      if #available(iOS 18.0, *) {
+        tabs.setTabBarHidden(hideTabs, animated: true)
+      } else {
+        tabs.tabBar.isHidden = hideTabs
+      }
     }
   }
 
@@ -275,11 +297,18 @@ final class SystemBars: NSObject, UITabBarControllerDelegate {
           return UINavigationController(rootViewController: host)
         }, animated: false)
     }
-    for (vc, t) in zip(tabs.viewControllers ?? [], next) {
-      vc.tabBarItem = UITabBarItem(
-        title: t.title, image: UIImage(systemName: t.icon), selectedImage: UIImage(systemName: t.selectedIcon ?? t.icon))
-      vc.tabBarItem.badgeValue = t.badge
+    // Change the items in place, and only what changed.
+    let names = next.map { "\($0.icon)|\($0.selectedIcon ?? "")" }
+    for (i, (vc, t)) in zip(tabs.viewControllers ?? [], next).enumerated() {
+      let item = vc.tabBarItem!
+      if icons.count != names.count || icons[i] != names[i] {
+        item.image = UIImage(systemName: t.icon)
+        item.selectedImage = UIImage(systemName: t.selectedIcon ?? t.icon)
+      }
+      if item.title != t.title { item.title = t.title }
+      if item.badgeValue != t.badge { item.badgeValue = t.badge }
     }
+    icons = names
   }
 
   /// Tauri's page into the selected tab, filling it, under its bars.
