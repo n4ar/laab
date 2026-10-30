@@ -165,7 +165,7 @@ function PushedChat({ chatId }: { chatId: string }) {
       {/* Below the header, so the back button stays tappable. */}
       <div
         className="absolute bottom-0 left-0 z-20 w-4 touch-none"
-        style={{ top: "calc(var(--safe-top-clear) + 56px)" }}
+        style={{ top: "calc(var(--safe-top) + 56px)" }}
         onPointerDown={(e) => drag.start(e)}
       />
     </motion.div>

@@ -101,8 +101,8 @@ class NativeTabbarPlugin: Plugin {
   }
 
   /// `edge` is "leading", "trailing" or nil; `fold` is the frame of the
-  /// hinge while the device is partly open; `topClear` and `occlusions` say
-  /// where the page may start at the top (see `LayoutWatcher`). The tab
+  /// hinge while the device is partly open; `topClear` is where the page may
+  /// start at the top outside the camera's corner (see `LayoutWatcher`). The tab
   /// bar's room is in the page's bottom safe area.
   private func layoutInfo() -> JSObject {
     var info: JSObject = [:]
@@ -113,7 +113,6 @@ class NativeTabbarPlugin: Plugin {
     if let edge = watcher.edge { info["edge"] = edge }
     if let fold = watcher.fold { info["fold"] = rect(fold) }
     info["topClear"] = Double(watcher.topClear)
-    info["occlusions"] = watcher.topOcclusions.map(rect) as JSArray
     return info
   }
 
