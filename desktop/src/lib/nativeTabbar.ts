@@ -69,9 +69,8 @@ interface Layout {
   fold?: Fold;
   /** The top inset where nothing covers the page; less than the safe area on
    *  the iPhone Duo's inner screen, whose status bar and camera share one
-   *  top corner, which `occlusions` gives. */
+   *  top corner. */
   topClear?: number;
-  occlusions?: Fold[];
 }
 
 /** Show iOS's own bars with this state: a tab bar, and where the system
@@ -98,9 +97,6 @@ export function useNativeTabbar(
     const root = document.documentElement.style;
     if (layout.topClear == null) root.removeProperty("--top-clear");
     else root.setProperty("--top-clear", `${layout.topClear}px`);
-    const left = Math.min(...(layout.occlusions ?? []).map((o) => o.x));
-    if (Number.isFinite(left)) root.setProperty("--occlusion-left", `${left}px`);
-    else root.removeProperty("--occlusion-left");
     setUi({ sideBar: layout.edge ?? null, fold: layout.fold ?? null });
   }, [layout]);
   useEffect(() => {

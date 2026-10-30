@@ -183,12 +183,11 @@ body,
    inset, which would leave titles in the screen's rounded corner. */
 :root {
   --safe-top: max(env(safe-area-inset-top), 14px);
-  /* Page headers start where nothing covers them (--top-clear, from the
-     native-tabbar plugin): on the Duo's inner screen that is near the top,
-     as the App Store's title is, and only the camera's corner is avoided. */
+  /* The list column's headers start where nothing covers them (--top-clear,
+     from the native-tabbar plugin): on the Duo's inner screen that is near
+     the top, as the App Store's title is. The chat pane, under the status
+     bar and camera's corner, keeps the whole safe area. */
   --safe-top-clear: max(var(--top-clear, env(safe-area-inset-top)), 14px);
-  /* From the right edge, past the camera's corner (--occlusion-left). */
-  --clear-corner: calc(100vw - var(--occlusion-left, 100vw) - env(safe-area-inset-right) + 8px);
 }
 .safe-top {
   padding-top: var(--safe-top);
