@@ -13,10 +13,12 @@ const T = 0.03;
 const OUTER = 0.13;
 const HINGE = 0.025;
 const BEZEL = 0.02;
-/** How far the front half opens, in degrees between the halves: a crack
- *  first, then the peek. Just enough to read, as one does in secret. */
-const CRACK = 24;
-const PEEK = 58;
+/** How far the front half opens, in degrees between the halves: a pause
+ *  halfway there, then the peek. iOS keeps the inner screen on only past
+ *  about 90–100° (below that it goes back to the cover screen once the hinge
+ *  stops), so the peek is half open, not a crack. */
+const PAUSE = 45;
+const PEEK = 105;
 const LOOP = 6;
 
 /** A rounded rectangle with its hinge side (x = 0) less rounded. `side` is
@@ -70,14 +72,14 @@ const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeIn = (t: number) => t * t * t;
 
 /** Degrees between the halves over one loop, as someone peeks: shut a
- *  moment, a slow crack open, a pause, a little wider, reading, and shut
+ *  moment, slowly open, a pause, on to half open, reading, and shut
  *  quickly. */
 function opening(t: number) {
   const s = (t % LOOP) / LOOP;
   if (s < 0.1) return 0;
-  if (s < 0.32) return CRACK * easeOut((s - 0.1) / 0.22);
-  if (s < 0.42) return CRACK;
-  if (s < 0.56) return CRACK + (PEEK - CRACK) * ease((s - 0.42) / 0.14);
+  if (s < 0.32) return PAUSE * easeOut((s - 0.1) / 0.22);
+  if (s < 0.4) return PAUSE;
+  if (s < 0.56) return PAUSE + (PEEK - PAUSE) * ease((s - 0.4) / 0.16);
   if (s < 0.82) return PEEK;
   if (s < 0.9) return PEEK * (1 - easeIn((s - 0.82) / 0.08));
   return 0;
@@ -265,8 +267,8 @@ export function mountDuo(el: HTMLElement, data: DuoData, still: boolean) {
     device.rotation.x = 0.1 + p * 0.06;
     device.position.y = Math.sin(t * 1.3) * 0.008;
     shadow.scale.set((W + span) * 1.25, 0.5, 1);
-    // The inner screen comes on as it opens.
-    const light = THREE.MathUtils.smoothstep(open, 4, CRACK);
+    // The inner screen comes on near where iOS turns it on.
+    const light = THREE.MathUtils.smoothstep(open, 70, 100);
     for (const m of innerScreens) m.color.setScalar(0.03 + 0.97 * light);
   };
 

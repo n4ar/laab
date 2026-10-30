@@ -301,7 +301,7 @@ export function PeekHint() {
         <span className="truncate text-[17px] font-semibold">{name}</span>
       </div>
       <div className="mt-1 text-[13px] leading-snug text-secondary">
-        ค่อย ๆ แง้มจอเพื่อแอบอ่าน
+        ค่อย ๆ กางจอครึ่งหนึ่งเพื่อแอบอ่าน
         <br />
         กางจนสุดเมื่อไหร่ จะขึ้นว่าอ่านแล้ว
       </div>
