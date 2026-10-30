@@ -9,6 +9,7 @@ import { phone, useWide } from "../lib/platform";
 import { dismissTop, pushDismiss, setUi, ui, useUi } from "../lib/ui";
 import { Avatar } from "./Avatar";
 import { useNames, useOlder } from "./ChatView";
+import { DuoHint } from "./DuoHint";
 import { CloseIcon, EyeIcon } from "./Icons";
 import type { RowContext } from "./MessageRow";
 import { Sheet } from "./Sheet";
@@ -256,49 +257,20 @@ export function PeekHint() {
   const name = list?.chats.find((c) => c.id === chatId)?.name ?? "";
   return (
     <div
-      className="fixed z-40 flex items-center gap-4 rounded-2xl bg-popover py-3.5 pr-3 pl-4 text-primary shadow-[0_8px_30px_rgba(0,0,0,0.22)] motion-safe:animate-row-in"
+      className="fixed z-40 rounded-3xl bg-popover px-4 pt-5 pb-3 text-center text-primary shadow-[0_10px_40px_rgba(0,0,0,0.25)] motion-safe:animate-row-in"
       style={{
         left: "max(12px, env(safe-area-inset-left))",
         right: "max(12px, env(safe-area-inset-right))",
         bottom: "calc(12px + env(safe-area-inset-bottom) + var(--tabbar-h, 0px))",
       }}
     >
-      <FoldHint />
-      <div className="min-w-0 flex-1 leading-snug">
-        <div className="text-[15px] font-semibold">แง้มจอเพื่อแอบอ่าน</div>
-        <div className="truncate text-[13px] text-secondary">{name} · ยังไม่ส่งว่าอ่านแล้ว</div>
-        <div className="text-[12px] text-secondary">กางสุดคืออ่านเลย</div>
-      </div>
-      <button onClick={() => pickPeek(null)} className="h-9 shrink-0 px-2 text-[14px] text-secondary">
+      <DuoHint />
+      <div className="text-[17px] font-semibold">แง้มจอเพื่อแอบอ่าน</div>
+      <div className="mt-0.5 truncate text-[13px] text-secondary">{name} · ยังไม่ส่งว่าอ่านแล้ว</div>
+      <div className="mt-0.5 text-[13px] text-secondary">กางสุดคืออ่านเลย</div>
+      <button onClick={() => pickPeek(null)} className="mt-1.5 h-9 px-4 text-[15px] text-line-green">
         ยกเลิก
       </button>
-    </div>
-  );
-}
-
-/** The two halves of the iPhone Duo seen from the front: the half with the
- *  cover screen (dark) swings off the inner screen and back. */
-function FoldHint() {
-  const half = "absolute top-0 h-[54px] w-[28px] rounded-[6px]";
-  const lines = (
-    <div className="flex flex-col gap-1 px-1.5 pt-2">
-      <span className="h-1 w-3 rounded-full bg-secondary/50" />
-      <span className="h-1 w-4 self-end rounded-full bg-line-green" />
-      <span className="h-1 w-2.5 rounded-full bg-secondary/50" />
-    </div>
-  );
-  return (
-    <div className="relative h-[54px] w-[58px] shrink-0 [perspective:240px]">
-      <div className={`${half} left-0 bg-chat ring-1 ring-separator`}>{lines}</div>
-      <div
-        className={`${half} left-[29px] origin-left [transform-style:preserve-3d] motion-safe:animate-peek-hint`}
-        style={{ transform: "rotateY(-118deg)" }}
-      >
-        <div className="absolute inset-0 rounded-[6px] bg-chat ring-1 ring-separator [backface-visibility:hidden]">{lines}</div>
-        <div className="absolute inset-0 rounded-[6px] bg-[#1c1c1e] ring-1 ring-black/40 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-          <EyeIcon size={12} className="absolute top-1.5 right-1.5 text-line-green" />
-        </div>
-      </div>
     </div>
   );
 }
