@@ -7,6 +7,7 @@ import { findHits, ranges } from "../inChatSearch";
 import { linkify, liffId } from "../links";
 import { adjacentChat, filterChats, folderName, groupRows, listPreview, unreadTotal } from "../chatList";
 import { nextReaction, topTypes } from "../reactions";
+import { PEEK_FLAT, peekClarity, peekOpen } from "../peek";
 import { dayHeader, fullStamp, listLabel } from "../time";
 import type { ChatList, Message } from "../types";
 
@@ -265,5 +266,28 @@ describe("unreadTotal", () => {
     const list = { chats: [chat("a", 3), chat("b", 5, true), chat("c", -1), chat("d", 2)] } as never;
     expect(unreadTotal(list)).toBe(5);
     expect(unreadTotal(undefined)).toBe(0);
+  });
+});
+
+describe("peekClarity", () => {
+  it("starts blurred where the peek first showed and clears 20° later", () => {
+    expect(peekClarity(110, 110)).toBe(0);
+    expect(peekClarity(120, 110)).toBeGreaterThan(0);
+    expect(peekClarity(120, 110)).toBeLessThan(1);
+    expect(peekClarity(130, 110)).toBe(1);
+  });
+  it("fades toward flat and is gone there", () => {
+    expect(peekClarity(160, 110)).toBeLessThan(1);
+    expect(peekClarity(PEEK_FLAT, 110)).toBe(0);
+  });
+});
+
+describe("peekOpen", () => {
+  it("needs the inner screen and a hinge short of flat", () => {
+    expect(peekOpen({ status: "partial", angle: 120 }, true)).toBe(true);
+    expect(peekOpen({ status: "closed", angle: 120 }, true)).toBe(true);
+    expect(peekOpen({ status: "partial", angle: 120 }, false)).toBe(false);
+    expect(peekOpen({ status: "open", angle: 178 }, true)).toBe(false);
+    expect(peekOpen(null, true)).toBe(false);
   });
 });

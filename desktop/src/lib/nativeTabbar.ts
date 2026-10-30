@@ -42,6 +42,12 @@ export interface Fold {
   height: number;
 }
 
+/** A foldable's hinge; `angle` is in degrees, 0 when closed. */
+export interface Hinge {
+  status: "closed" | "partial" | "open" | "unknown";
+  angle: number;
+}
+
 interface Layout {
   height: number;
   edge?: "leading" | "trailing";
@@ -80,6 +86,7 @@ export function useNativeTabbar(
       // Folding, unfolding or rotating moved or removed the vertical bar or
       // the fold.
       addPluginListener<Layout>("native-tabbar", "layout", setLayout),
+      addPluginListener<Hinge>("native-tabbar", "hinge", (hinge) => setUi({ hinge })),
     ];
     return () => listeners.forEach((l) => l.then((x) => x.unregister()));
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -35,6 +35,22 @@
   --animate-row-in: row-in 180ms cubic-bezier(0.32, 0.72, 0, 1) both;
   --animate-folder-in: folder-in 220ms cubic-bezier(0.32, 0.72, 0, 1) both;
   --animate-ghost-in: ghost-in 120ms ease-out both;
+  /* The iPhone Duo peek hint: the half with the cover screen swings open a
+     little, holds, and shuts. */
+  --animate-peek-hint: peek-hint 2.8s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  @keyframes peek-hint {
+    0%,
+    18% {
+      transform: rotateY(-176deg);
+    }
+    48%,
+    78% {
+      transform: rotateY(-118deg);
+    }
+    100% {
+      transform: rotateY(-176deg);
+    }
+  }
   @keyframes row-in {
     from {
       /* `translate`, not `transform`: the list places rows with transform. */
