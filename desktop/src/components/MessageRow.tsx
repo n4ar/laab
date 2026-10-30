@@ -59,7 +59,7 @@ function Bubble({ mine, tail, children, className = "" }: { mine: boolean; tail:
   const color = mine ? "var(--color-outgoing)" : "var(--color-incoming)";
   return (
     <div
-      className={`selectable relative max-w-[420px] rounded-[16.5px] px-[13px] py-[7px] text-[13.5px] leading-[1.4] break-words whitespace-pre-wrap ${className}`}
+      className={`selectable relative max-w-[420px] rounded-[16.5px] px-[13px] py-[7px] text-[13.5px] leading-[1.4] whitespace-pre-wrap [overflow-wrap:anywhere] ${className}`}
       style={{ background: color, color: mine ? "var(--color-outgoing-text)" : "var(--color-primary)" }}
     >
       {tail && <Tail mine={mine} color={color} />}
@@ -606,8 +606,10 @@ export const MessageRow = memo(function MessageRow({
       </div>
     </div>
   );
+  // min-w-0 down the row lets a bubble shrink to a narrow pane instead of
+  // pushing the timeline wider than its column.
   const bubble = (
-    <div className="relative">
+    <div className="relative min-w-0">
       <Ctx menu={rowMenu(m, dev, ctx)}>
         <Content m={m} ctx={ctx} tail={tail} highlight={highlight} current={current} />
       </Ctx>
@@ -651,7 +653,7 @@ export const MessageRow = memo(function MessageRow({
           </div>
           <div className={`flex min-w-0 flex-col ${tail ? "pl-2" : ""}`}>
             {runStart && ctx.group && m.senderId && <span className="mb-1 text-[12px] text-secondary">{ctx.name(m.senderId)}</span>}
-            <div className="flex items-end gap-1.5">
+            <div className="flex min-w-0 items-end gap-1.5">
               {bubble}
               {meta}
             </div>
