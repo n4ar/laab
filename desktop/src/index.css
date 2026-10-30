@@ -35,20 +35,61 @@
   --animate-row-in: row-in 180ms cubic-bezier(0.32, 0.72, 0, 1) both;
   --animate-folder-in: folder-in 220ms cubic-bezier(0.32, 0.72, 0, 1) both;
   --animate-ghost-in: ghost-in 120ms ease-out both;
-  /* The iPhone Duo peek hint: the half with the cover screen swings open a
-     little, holds, and shuts. */
-  --animate-peek-hint: peek-hint 2.8s cubic-bezier(0.45, 0, 0.2, 1) infinite;
-  @keyframes peek-hint {
+  /* The iPhone Duo peek hint (DuoHint): the front half swings open to the
+     left, the inner screen lights up, it holds, and it shuts. All four share
+     one clock. */
+  --animate-duo-fold: duo-fold 3.6s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  --animate-duo-light: duo-light 3.6s ease-in-out infinite;
+  --animate-duo-turn: duo-turn 3.6s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  --animate-duo-shadow: duo-shadow 3.6s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  @keyframes duo-fold {
     0%,
-    18% {
-      transform: rotateY(-176deg);
+    14%,
+    92%,
+    100% {
+      transform: rotateY(179.5deg);
+    }
+    46%,
+    74% {
+      transform: rotateY(72deg);
+    }
+  }
+  @keyframes duo-light {
+    0%,
+    22%,
+    90%,
+    100% {
+      opacity: 0.92;
     }
     48%,
-    78% {
-      transform: rotateY(-118deg);
+    72% {
+      opacity: 0;
     }
+  }
+  @keyframes duo-turn {
+    0%,
+    14%,
+    92%,
     100% {
-      transform: rotateY(-176deg);
+      transform: translateX(-46px) rotateX(14deg) rotateY(-16deg);
+    }
+    46%,
+    74% {
+      transform: translateX(-34px) rotateX(14deg) rotateY(-10deg);
+    }
+  }
+  @keyframes duo-shadow {
+    0%,
+    14%,
+    92%,
+    100% {
+      transform: scaleX(0.5);
+      opacity: 0.8;
+    }
+    46%,
+    74% {
+      transform: scaleX(0.78);
+      opacity: 1;
     }
   }
   @keyframes row-in {
