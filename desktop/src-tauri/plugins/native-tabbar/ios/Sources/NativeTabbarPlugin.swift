@@ -55,13 +55,9 @@ struct UpdateArgs: Decodable {
 /// the column itself with Liquid Glass. Elsewhere it shows a `UITabBar` at the
 /// bottom. The frontend hears `select` for tabs, `action` for column buttons,
 /// `layout` when the mode changes and `hinge` as a foldable opens or closes.
-class NativeTabbarPlugin: Plugin, UITabBarDelegate {
-  private var bar: UITabBar?
+class NativeTabbarPlugin: Plugin {
+  private var bars: SystemBars?
   private var column: SideColumnView?
-  private var tabs: [TabArgs] = []
-  private var leading: NSLayoutConstraint?
-  private var width: NSLayoutConstraint?
-  private var barHidden = true
   private var last: UpdateArgs?
   private var reportedEdge: String?
   private var reportedFold: CGRect?
@@ -81,23 +77,24 @@ class NativeTabbarPlugin: Plugin, UITabBarDelegate {
   }
 
   private func apply(_ args: UpdateArgs, in root: UIView) {
+    // The column only watches the vertical bar's edge, the fold and the
+    // hinge now; the system draws the bars.
     let column = self.column ?? installColumn(in: root)
-    let side = column.edge != nil
-    column.show(args.side, hidden: args.hidden || !side)
-
-    let bar = self.bar ?? installBar(in: root)
-    setItems(args.tabs, on: bar)
-    bar.selectedItem = bar.items?.first { self.tabs[$0.tag].id == args.selected }
-    leading?.constant = CGFloat(args.x ?? 0)
-    width?.constant = CGFloat(args.width ?? Double(root.bounds.width))
-    root.layoutIfNeeded()
-    setBarHidden(args.hidden || (args.bottomHidden ?? false) || side, bar)
+    column.show(nil, hidden: true)
+    if bars == nil, let content = manager.viewController, let window = content.view.window {
+      let bars = SystemBars(content: content, window: window)
+      bars.onSelect = { [weak self] id in self?.trigger("select", data: ["id": id]) }
+      bars.onAction = { [weak self] id in self?.trigger("action", data: ["id": id]) }
+      self.bars = bars
+    }
+    bars?.update(args, vertical: column.edge != nil)
   }
 
-  /// `edge` is "leading", "trailing" or nil; `height` is the bottom bar's;
-  /// `fold` is the frame of the hinge while the device is partly open.
+  /// `edge` is "leading", "trailing" or nil; `fold` is the frame of the
+  /// hinge while the device is partly open. `height` is 0: the system's tab
+  /// bar is in the page's safe area.
   private func layoutInfo() -> JSObject {
-    var info: JSObject = ["height": Double(barHidden ? 0 : bar?.frame.height ?? 0)]
+    var info: JSObject = ["height": 0.0]
     if let edge = column?.edge { info["edge"] = edge }
     if let fold = column?.fold {
       info["fold"] = [
@@ -105,34 +102,6 @@ class NativeTabbarPlugin: Plugin, UITabBarDelegate {
       ] as JSObject
     }
     return info
-  }
-
-  private func setBarHidden(_ hidden: Bool, _ bar: UITabBar) {
-    guard hidden != barHidden else { return }
-    barHidden = hidden
-    bar.isUserInteractionEnabled = !hidden
-    UIView.animate(withDuration: 0.25, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState, .allowUserInteraction]) {
-      bar.alpha = hidden ? 0 : 1
-      bar.transform = hidden ? CGAffineTransform(translationX: 0, y: bar.bounds.height) : .identity
-    }
-  }
-
-  private func installBar(in root: UIView) -> UITabBar {
-    let bar = UITabBar()
-    bar.delegate = self
-    // LINE marks the selected tab black (white in dark mode), not blue.
-    bar.tintColor = .label
-    bar.alpha = 0
-    bar.isUserInteractionEnabled = false
-    bar.translatesAutoresizingMaskIntoConstraints = false
-    root.addSubview(bar)
-    let leading = bar.leadingAnchor.constraint(equalTo: root.leadingAnchor)
-    let width = bar.widthAnchor.constraint(equalToConstant: root.bounds.width)
-    NSLayoutConstraint.activate([leading, width, bar.bottomAnchor.constraint(equalTo: root.bottomAnchor)])
-    self.bar = bar
-    self.leading = leading
-    self.width = width
-    return bar
   }
 
   private func installColumn(in root: UIView) -> SideColumnView {
@@ -175,32 +144,6 @@ class NativeTabbarPlugin: Plugin, UITabBarDelegate {
     self.column = column
     reportedEdge = column.edge
     return column
-  }
-
-  /// Rebuild the items only when the tabs change; otherwise update badges, so
-  /// the selection animation is not cut short.
-  private func setItems(_ next: [TabArgs], on bar: UITabBar) {
-    let same =
-      next.map { "\($0.id)|\($0.title)|\($0.icon)" } == tabs.map { "\($0.id)|\($0.title)|\($0.icon)" }
-    tabs = next
-    if !same {
-      bar.items = next.enumerated().map { i, t in
-        let item = UITabBarItem(
-          title: t.title,
-          image: UIImage(systemName: t.icon),
-          selectedImage: UIImage(systemName: t.selectedIcon ?? t.icon))
-        item.tag = i
-        return item
-      }
-    }
-    for item in bar.items ?? [] {
-      item.badgeValue = next[item.tag].badge
-    }
-  }
-
-  func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
-    guard item.tag < tabs.count else { return }
-    trigger("select", data: ["id": tabs[item.tag].id])
   }
 }
 
@@ -607,6 +550,107 @@ final class TabGroupView: UIView {
       refresh()
       placeLens(at: selectedIndex, lifted: false, animated: true)
     }
+  }
+}
+
+/// LAAB's bars as the system's own. Each tab is a navigation controller, and
+/// Tauri's view controller moves into the selected one, so iOS draws the tab
+/// bar and the chat's bar buttons itself: at the bottom and top, or in the
+/// vertical bar where there is one (the iPhone Duo).
+final class SystemBars: NSObject, UITabBarControllerDelegate {
+  var onSelect: ((String) -> Void)?
+  var onAction: ((String) -> Void)?
+  private let tabs = UITabBarController()
+  private let content: UIViewController
+  private var ids: [String] = []
+
+  init(content: UIViewController, window: UIWindow) {
+    self.content = content
+    super.init()
+    tabs.delegate = self
+    // LINE marks the selected tab black (white in dark mode), not blue.
+    tabs.view.tintColor = .label
+    window.rootViewController = tabs
+  }
+
+  func update(_ args: UpdateArgs, vertical: Bool) {
+    setTabs(args.tabs)
+    if let i = ids.firstIndex(of: args.selected), i != tabs.selectedIndex || content.parent == nil {
+      tabs.selectedIndex = i
+      embed()
+    }
+    guard let nav = tabs.selectedViewController as? UINavigationController, let host = nav.topViewController else {
+      return
+    }
+    // The page draws its own headers; the navigation bar is only for the
+    // buttons the vertical bar shows.
+    let buttons = vertical && !args.hidden
+    nav.setNavigationBarHidden(!buttons, animated: false)
+    let tabIds = Set(ids.map { "tab:\($0)" })
+    let top = (args.side?.top ?? []).filter { !$0.isEmpty }
+    let bottom = (args.side?.bottom ?? []).filter { g in !g.isEmpty && !g.contains { tabIds.contains($0.id) } }
+    host.navigationItem.leadingItemGroups = buttons ? top.map(group) : []
+    host.navigationItem.trailingItemGroups = buttons ? bottom.map(group) : []
+    let hideTabs = args.hidden || (args.bottomHidden ?? false)
+    if #available(iOS 18.0, *) {
+      tabs.setTabBarHidden(hideTabs, animated: true)
+    } else {
+      tabs.tabBar.isHidden = hideTabs
+    }
+  }
+
+  private func setTabs(_ next: [TabArgs]) {
+    if next.map(\.id) != ids {
+      ids = next.map(\.id)
+      tabs.setViewControllers(
+        next.map { _ in
+          let host = UIViewController()
+          host.view.backgroundColor = .systemBackground
+          return UINavigationController(rootViewController: host)
+        }, animated: false)
+    }
+    for (vc, t) in zip(tabs.viewControllers ?? [], next) {
+      vc.tabBarItem = UITabBarItem(
+        title: t.title, image: UIImage(systemName: t.icon), selectedImage: UIImage(systemName: t.selectedIcon ?? t.icon))
+      vc.tabBarItem.badgeValue = t.badge
+    }
+  }
+
+  /// Tauri's page into the selected tab, filling it, under its bars.
+  private func embed() {
+    guard let host = (tabs.selectedViewController as? UINavigationController)?.viewControllers.first,
+      content.parent !== host
+    else { return }
+    content.willMove(toParent: nil)
+    content.view.removeFromSuperview()
+    content.removeFromParent()
+    host.addChild(content)
+    content.view.frame = host.view.bounds
+    content.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    host.view.addSubview(content.view)
+    content.didMove(toParent: host)
+  }
+
+  func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) {
+    let i = tabBarController.selectedIndex
+    guard ids.indices.contains(i) else { return }
+    embed()
+    onSelect?(ids[i])
+  }
+
+  private static let titles = [
+    "back": "กลับ", "search": "ค้นหาในแชท", "notes": "โน้ต", "more": "เพิ่มเติม", "compose": "ค้นหา",
+  ]
+
+  private func group(_ buttons: [SideButtonArgs]) -> UIBarButtonItemGroup {
+    UIBarButtonItemGroup(
+      barButtonItems: buttons.map { b in
+        let item = UIBarButtonItem(
+          title: Self.titles[b.id] ?? b.id, image: UIImage(systemName: b.icon),
+          primaryAction: UIAction { [weak self] _ in self?.onAction?(b.id) })
+        if #available(iOS 26.0, *), let badge = b.badge { item.badge = .string(badge) }
+        return item
+      }, representativeItem: nil)
   }
 }
 
