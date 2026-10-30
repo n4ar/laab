@@ -19,6 +19,7 @@ import { RichMenu } from "./RichMenu";
 import { BellSlashIcon, ChevronIcon, CloseIcon, ExternalIcon, MoreVIcon, NoteIcon, SearchIcon, SpeakerIcon } from "./Icons";
 import { popupClass } from "./kit";
 import type { RowContext } from "./MessageRow";
+import type { ChatMember } from "../lib/types";
 import { StickerPanel } from "./StickerPanel";
 import { type Older, Timeline } from "./Timeline";
 
@@ -27,7 +28,7 @@ const overlayOpen = () => !!document.querySelector('[role="menu"], [role="dialog
 
 /** Scrolling to the top shows more of the stored messages, then asks LINE
  *  for the page before them, 100 at a time. */
-function useOlder(chatId: string, count: number): Older {
+export function useOlder(chatId: string, count: number): Older {
   const [state, setState] = useState<Older["state"]>("idle");
   useEffect(() => setState("idle"), [chatId]);
   const busy = useRef(false);
@@ -50,6 +51,33 @@ function useOlder(chatId: string, count: number): Older {
     }
   }, [chatId, count]);
   return { state, load };
+}
+
+/** Names and pictures for a chat's senders, from friends, members and
+ *  people seen before. */
+export function useNames(members: ChatMember[] | undefined) {
+  const list = useChatList();
+  const session = useSession();
+  const people = usePeople();
+  const me = session?.profile?.mid ?? "";
+  // The chat list changes with every message in any chat. Read it through a
+  // ref so that does not rebuild `ctx` and re-render every row here; a
+  // renamed friend shows up with the next change to this chat.
+  const listRef = useRef(list);
+  listRef.current = list;
+  const name = useCallback(
+    (mid: string) => {
+      if (mid === me || mid === "me") return session?.profile?.displayName || "คุณ";
+      const c = listRef.current?.chats.find((x) => x.id === mid && x.name !== x.id);
+      return c?.name ?? members?.find((m) => m.mid === mid)?.name ?? people[mid]?.name ?? "สมาชิก";
+    },
+    [me, session?.profile?.displayName, members, people],
+  );
+  const picture = useCallback(
+    (mid: string) => members?.find((m) => m.mid === mid)?.picture ?? people[mid]?.picture ?? null,
+    [members, people],
+  );
+  return { name, picture };
 }
 
 export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
@@ -112,23 +140,7 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId, group]);
 
-  // The chat list changes with every message in any chat. Read it through a
-  // ref so that does not rebuild `ctx` and re-render every row here; a
-  // renamed friend shows up with the next change to this chat.
-  const listRef = useRef(list);
-  listRef.current = list;
-  const name = useCallback(
-    (mid: string) => {
-      if (mid === me || mid === "me") return session?.profile?.displayName || "คุณ";
-      const c = listRef.current?.chats.find((x) => x.id === mid && x.name !== x.id);
-      return c?.name ?? members?.find((m) => m.mid === mid)?.name ?? people[mid]?.name ?? "สมาชิก";
-    },
-    [me, session?.profile?.displayName, members, people],
-  );
-  const picture = useCallback(
-    (mid: string) => members?.find((m) => m.mid === mid)?.picture ?? people[mid]?.picture ?? null,
-    [members, people],
-  );
+  const { name, picture } = useNames(members);
   // Letter Sealing: LINE marks encrypted messages with e2eeVersion.
   const secure = useMemo(() => messages.some((m) => "e2eeVersion" in m.metadata), [messages]);
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);

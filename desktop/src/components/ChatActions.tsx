@@ -8,6 +8,7 @@ import { clock, dayHeader } from "../lib/time";
 import type { Chat } from "../lib/types";
 import { notice, setUi } from "../lib/ui";
 import { itemClass, popupClass, Separator } from "./kit";
+import { showPreview } from "./ChatPreview";
 import { LockIcon } from "./Icons";
 
 const run = (p: Promise<unknown>, done?: string) => p.then(() => done && notice(done)).catch((e) => notice(errorText(e)));
@@ -67,18 +68,16 @@ function confirmDelete(chat: Chat) {
 }
 
 /** Right-click on a chat row, in LINE for Mac's order: เปิดในหน้าต่างใหม่ ─
- *  ปักหมุด, ซ่อน, ลบ ─ ปิดแจ้งเตือน, then LAAB's folders. */
+ *  ปักหมุด, ซ่อน, ลบ ─ ปิดแจ้งเตือน, then LAAB's folders. LAAB's
+ *  ดูโดยไม่อ่าน leads. */
 export function ChatActions({ chat }: { chat: Chat }) {
   const list = useChatList();
   const pinned = list?.pins.main?.includes(chat.id) ?? false;
   return (
     <>
-      {!phone && (
-        <>
-          <Item onClick={() => run(api.openChatWindow(chat.id, chat.name))}>เปิดในหน้าต่างใหม่</Item>
-          <Separator />
-        </>
-      )}
+      <Item onClick={() => showPreview(chat.id)}>ดูโดยไม่อ่าน</Item>
+      {!phone && <Item onClick={() => run(api.openChatWindow(chat.id, chat.name))}>เปิดในหน้าต่างใหม่</Item>}
+      <Separator />
       <Item onClick={() => run(api.setPinned(chat.id, "main", !pinned))}>{pinned ? "เลิกปักหมุด" : "ปักหมุด"}</Item>
       <Item onClick={() => run(api.hideChat(chat.id))}>ซ่อน</Item>
       <Item onClick={() => confirmDelete(chat)}>ลบ</Item>
