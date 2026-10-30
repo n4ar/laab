@@ -254,7 +254,8 @@ export function PeekHint() {
   const wide = useWide();
   const list = useChatList();
   if (!chatId || wide) return null;
-  const name = list?.chats.find((c) => c.id === chatId)?.name ?? "";
+  const chat = list?.chats.find((c) => c.id === chatId);
+  const name = chat?.name ?? chatId;
   return (
     <div
       className="fixed z-40 rounded-3xl bg-popover px-4 pt-5 pb-3 text-center text-primary shadow-[0_10px_40px_rgba(0,0,0,0.25)] motion-safe:animate-row-in"
@@ -265,9 +266,11 @@ export function PeekHint() {
       }}
     >
       <DuoHint />
-      <div className="text-[17px] font-semibold">แง้มจอเพื่อแอบอ่าน</div>
-      <div className="mt-0.5 truncate text-[13px] text-secondary">{name} · ยังไม่ส่งว่าอ่านแล้ว</div>
-      <div className="mt-0.5 text-[13px] text-secondary">กางสุดคืออ่านเลย</div>
+      <div className="flex items-center justify-center gap-2">
+        <Avatar id={chatId} name={name} size={26} picture={chat?.picture} local={chat?.avatar} />
+        <span className="truncate text-[17px] font-semibold">{name}</span>
+      </div>
+      <div className="mt-1 text-[13px] text-secondary">ระวัง กางสุดจะขึ้นว่าอ่านแล้ว</div>
       <button onClick={() => pickPeek(null)} className="mt-1.5 h-9 px-4 text-[15px] text-line-green">
         ยกเลิก
       </button>
