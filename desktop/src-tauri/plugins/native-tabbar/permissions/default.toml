@@ -2,4 +2,4 @@
 
 [default]
 description = "Lets LAAB's own windows show the native tab bar and chat menus and hear taps on them."
-permissions = ["allow-update", "allow-menu", "allow-register-listener", "allow-remove-listener"]
+permissions = ["allow-update", "allow-menu", "allow-thaw", "allow-register-listener", "allow-remove-listener"]

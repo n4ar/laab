@@ -123,6 +123,14 @@ class NativeTabbarPlugin: Plugin {
     self.menus = menus
   }
 
+  /// The page hid the chat's card again (see `ChatMenus.freeze`).
+  @objc public func thaw(_ invoke: Invoke) {
+    DispatchQueue.main.async {
+      self.menus?.thaw()
+      invoke.resolve()
+    }
+  }
+
   @objc public func menu(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(MenuArgs.self)
     DispatchQueue.main.async {
@@ -439,6 +447,7 @@ final class ChatMenus: NSObject, WKUIDelegate {
   private let original: WKUIDelegate?
   private var token = 0
   private var pending: (token: Int, done: (UIContextMenuConfiguration?) -> Void)?
+  private var frozen: UIView?
 
   init(webview: WKWebView) {
     self.webview = webview
@@ -474,11 +483,13 @@ final class ChatMenus: NSObject, WKUIDelegate {
     token += 1
     let token = token
     pending = (token, completionHandler)
+    freeze()
     onRequest?(token, chat)
     // A page that never answers must not hold the press forever.
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
       guard let self, self.pending?.token == token else { return }
       self.pending = nil
+      self.thaw()
       completionHandler(nil)
     }
   }
@@ -510,6 +521,28 @@ final class ChatMenus: NSObject, WKUIDelegate {
       if let error { log.error("card snapshot: \(error.localizedDescription, privacy: .public)") }
       show(image)
     }
+  }
+
+  /// A picture of the page as it is, over the web view while the page draws
+  /// the chat's card to be snapshotted, so the card never shows on screen.
+  /// The snapshot is of the web view's own layers, which the picture is not.
+  private func freeze() {
+    guard frozen == nil, let webview, let superview = webview.superview,
+      let picture = webview.snapshotView(afterScreenUpdates: false)
+    else { return }
+    picture.frame = webview.frame
+    picture.isUserInteractionEnabled = false
+    superview.insertSubview(picture, aboveSubview: webview)
+    frozen = picture
+  }
+
+  func thaw() {
+    frozen?.removeFromSuperview()
+    frozen = nil
+  }
+
+  func webView(_ webView: WKWebView, contextMenuDidEndForElement elementInfo: WKContextMenuElementInfo) {
+    thaw()
   }
 
   func webView(
