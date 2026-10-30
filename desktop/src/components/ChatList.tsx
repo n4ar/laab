@@ -12,10 +12,12 @@ import { type ChatFilter, notice, setUi, ui, useUi } from "../lib/ui";
 import { installAndRestart, useReadyVersion } from "../lib/updater";
 import { Avatar } from "./Avatar";
 import { ChatActions } from "./ChatActions";
+import { ChatPreview, hoverPreview, leavePreview, showPreview, stayInPreview } from "./ChatPreview";
 import {
   BellSlashIcon,
   BookmarkIcon,
   ChevronIcon,
+  EyeIcon,
   FolderIcon,
   PhoneOutlineIcon,
   PinIcon,
@@ -160,6 +162,8 @@ export function ChatListColumn({ selected }: { selected: string | null }) {
         onKeyDown={onKey}
         aria-label="รายชื่อแชท"
         data-drop="list"
+        onMouseEnter={stayInPreview}
+        onMouseLeave={leavePreview}
         className="relative min-h-0 flex-1 overflow-y-auto outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-secondary"
       >
         {query.trim() && chats.length > 0 && (
@@ -232,6 +236,7 @@ export function ChatListColumn({ selected }: { selected: string | null }) {
       <UpdateBar />
       <StatusBar />
       <DragGhost list={list} />
+      <ChatPreview anchor={scroller} />
     </div>
   );
 }
@@ -509,18 +514,24 @@ export function ChatRow({
   const merge = useChatDrag((d) => d?.target?.kind === "merge" && d.target.chatId === chat.id);
   const intoFolder = useChatDrag((d) => !!folder && d?.target?.kind === "folder" && d.target.id === folder);
   const drag = draggable && !phone;
+  const previewing = useUi((s) => s.preview === chat.id);
+  const chip = !phone && !selected && (hover || previewing);
   return (
     <Ctx menu={<ChatActions chat={chat} />} className="block">
       <div
         data-drop="chat"
         data-id={chat.id}
         data-folder={folder ?? undefined}
-        onMouseEnter={() => !phone && setHover(true)}
+        onMouseEnter={() => {
+          if (phone) return;
+          setHover(true);
+          if (!selected) hoverPreview(chat.id);
+        }}
         onMouseLeave={() => setHover(false)}
         onPointerDown={drag ? (e) => pressChat(e, chat, folder, scroller?.current ?? null) : undefined}
         onClick={() => !clickEndsDrag() && openChat(chat.id)}
         className={`flex h-[72px] cursor-default items-center gap-3 px-4 transition-opacity duration-150 ease-out active:bg-row-selected ${folder ? "pl-7" : ""} ${dragged ? "opacity-40" : ""} ${
-          merge || intoFolder ? "bg-line-green/12" : selected ? "bg-row-selected" : hover ? "bg-row-hover" : folder ? "bg-row-hover/60" : ""
+          merge || intoFolder ? "bg-line-green/12" : selected ? "bg-row-selected" : hover || previewing ? "bg-row-hover" : folder ? "bg-row-hover/60" : ""
         }`}
       >
         {/* The chat it would share a folder with grows a little, as in Discord. */}
@@ -554,7 +565,11 @@ export function ChatRow({
               <span className="shrink-0 text-[13.5px] text-primary">({chat.memberCount})</span>
             ) : null}
             {chat.muted && <BellSlashIcon size={10} className="shrink-0 text-secondary" />}
-            <span className="ml-auto shrink-0 text-[11px] text-secondary">{listLabel(chat.lastActivity)}</span>
+            {chip ? (
+              <PreviewChip chatId={chat.id} active={previewing} />
+            ) : (
+              <span className="ml-auto shrink-0 text-[11px] text-secondary">{listLabel(chat.lastActivity)}</span>
+            )}
           </div>
           <div className="mt-0.5 flex items-start gap-2">
             <span className={`line-clamp-2 flex-1 leading-[1.35] text-secondary ${phone ? "text-[13.5px]" : "text-[12px]"}`}>
@@ -590,6 +605,28 @@ function UpdateBar() {
         {busy ? "กำลังติดตั้ง…" : "รีสตาร์ต"}
       </button>
     </div>
+  );
+}
+
+/** Shown on the hovered chat in place of its time: opens the chat beside the
+ *  list without sending a read receipt. */
+function PreviewChip({ chatId, active }: { chatId: string; active: boolean }) {
+  return (
+    <button
+      title="ดูแชทโดยไม่ส่งว่าอ่านแล้ว"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (active) setUi({ preview: null });
+        else showPreview(chatId);
+      }}
+      className={`ml-auto flex h-[18px] shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium transition-colors duration-100 ${
+        active ? "bg-line-green text-white" : "bg-field text-secondary hover:bg-line-green hover:text-white"
+      }`}
+    >
+      <EyeIcon size={11} />
+      Preview
+    </button>
   );
 }
 

@@ -7,7 +7,7 @@ import { LAST_CHAT_KEY, notice, setUi } from "./ui";
 /** Open a chat in the main window, optionally scrolled to a message. Unfolds
  *  the conversation pane if it was folded. */
 export function openChat(chatId: string, opts: { messageId?: string | null; focusComposer?: boolean } = {}) {
-  setUi({ focusMessageId: opts.messageId ?? null, searchOpen: false });
+  setUi({ focusMessageId: opts.messageId ?? null, searchOpen: false, preview: null });
   unfoldChat().catch((e) => notice(errorText(e)));
   localStorage.setItem(LAST_CHAT_KEY, chatId);
   router.navigate({ to: "/chat/$chatId", params: { chatId } });

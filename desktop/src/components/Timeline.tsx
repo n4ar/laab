@@ -29,6 +29,7 @@ export function Timeline({
   members,
   people,
   search,
+  follows = true,
 }: {
   messages: Message[];
   /** The first page is still loading (nothing cached yet). */
@@ -41,9 +42,11 @@ export function Timeline({
   members?: ChatMember[];
   people: Record<string, { picture: string | null }>;
   search: { query: string; hits: string[]; index: number } | null;
+  /** Jump to the message ⌘K or a link asks for; the preview leaves that to the chat. */
+  follows?: boolean;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
-  const focusId = useUi((s) => s.focusMessageId);
+  const focusId = useUi((s) => (follows ? s.focusMessageId : null));
   const rows = useMemo(() => buildRows(messages, ctx.name), [messages, ctx.name]);
   // #9: place read marks once per render, not once per row.
   const marks = useMemo(() => {

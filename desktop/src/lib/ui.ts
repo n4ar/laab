@@ -85,6 +85,8 @@ export interface UiState {
   chatSearch: number;
   /** The chat's ⋮ menu, opened from the vertical bar. */
   chatMenuOpen: boolean;
+  /** The chat shown beside the list without telling LINE it was read. */
+  preview: string | null;
   /** When this app last sent a message; that message scrolls the chat down. */
   sentAt: number;
   /** The announcement list over the chat is open. */
@@ -129,6 +131,7 @@ export const ui = createStore<UiState>({
   fold: null,
   chatSearch: 0,
   chatMenuOpen: false,
+  preview: null,
   profile: null,
 });
 
