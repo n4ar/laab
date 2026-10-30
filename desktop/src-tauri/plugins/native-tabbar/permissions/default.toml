@@ -1,5 +1,5 @@
 "$schema" = "schemas/schema.json"
 
 [default]
-description = "Lets LAAB's own windows show the native tab bar and hear taps on it."
-permissions = ["allow-update", "allow-register-listener", "allow-remove-listener"]
+description = "Lets LAAB's own windows show the native tab bar and chat menus and hear taps on them."
+permissions = ["allow-update", "allow-menu", "allow-register-listener", "allow-remove-listener"]

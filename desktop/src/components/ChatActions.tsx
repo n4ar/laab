@@ -1,14 +1,15 @@
 import { Menu } from "@base-ui/react/menu";
-import { Fragment } from "react";
+import { addPluginListener, invoke } from "@tauri-apps/api/core";
+import { Fragment, useEffect } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
-import { api, errorText, messageLimit, useChatList, usePeople } from "../lib/api";
+import { api, errorText, messageLimit, q, queryClient, useChatList, usePeople } from "../lib/api";
 import { folderName, folderOf, isGroup } from "../lib/chatList";
-import { closeChat } from "../lib/nav";
+import { closeChat, openChat } from "../lib/nav";
 import { phone } from "../lib/platform";
 import { clock, dayHeader } from "../lib/time";
 import type { Chat, ChatList } from "../lib/types";
-import type { MenuEntry } from "../lib/nativeTabbar";
-import { notice, setUi, useUi } from "../lib/ui";
+import { findEntry, type MenuEntry } from "../lib/nativeTabbar";
+import { notice, setUi, ui, useUi } from "../lib/ui";
 import { itemClass, popupClass, Separator } from "./kit";
 import { onCoverScreen, pickPeek, showPreview } from "./ChatPreview";
 import { LockIcon } from "./Icons";
@@ -85,40 +86,103 @@ function confirmDelete(chat: Chat) {
   });
 }
 
-/** Right-click on a chat row, in LINE for Mac's order: เปิดในหน้าต่างใหม่ ─
+/** A chat row's menu, in LINE for Mac's order: เปิดในหน้าต่างใหม่ ─
  *  ปักหมุด, ซ่อน, ลบ ─ ปิดแจ้งเตือน, then LAAB's folders. LAAB's
  *  ดูโดยไม่อ่าน leads. */
-export function ChatActions({ chat }: { chat: Chat }) {
-  const list = useChatList();
+function rowMenu(chat: Chat, list: ChatList | undefined, peeked: boolean): MenuEntry[][] {
   const pinned = list?.pins.main?.includes(chat.id) ?? false;
-  const peeked = useUi((s) => s.peek === chat.id);
-  return (
-    <>
-      {peeked ? (
-        <Item onClick={() => pickPeek(null)}>เลิกแอบดู</Item>
-      ) : (
-        <Item onClick={() => (onCoverScreen() ? pickPeek(chat.id) : showPreview(chat.id))}>ดูโดยไม่อ่าน</Item>
-      )}
-      {!phone && <Item onClick={() => run(api.openChatWindow(chat.id, chat.name))}>เปิดในหน้าต่างใหม่</Item>}
-      <Separator />
-      <Item onClick={() => run(api.setPinned(chat.id, "main", !pinned))}>{pinned ? "เลิกปักหมุด" : "ปักหมุด"}</Item>
-      <Item onClick={() => run(api.hideChat(chat.id))}>ซ่อน</Item>
-      <Item onClick={() => confirmDelete(chat)}>ลบ</Item>
-      <Separator />
-      <Item onClick={() => run(api.setMuted(chat.id, !chat.muted))}>{chat.muted ? "เปิดแจ้งเตือน" : "ปิดแจ้งเตือน"}</Item>
-      <SubmenuEntry entry={folderEntry(chat, list)} />
-      <LeaveFolder chat={chat} />
-    </>
-  );
+  const inFolder = list && folderOf(list).get(chat.id);
+  const folder = inFolder ? list.workspaces.find((w) => w.id === inFolder) : undefined;
+  return [
+    [
+      peeked
+        ? { id: "unpeek", title: "เลิกแอบดู", icon: "eye.slash", run: () => pickPeek(null) }
+        : { id: "peek", title: "ดูโดยไม่อ่าน", icon: "eye", run: () => (onCoverScreen() ? pickPeek(chat.id) : showPreview(chat.id)) },
+      ...(phone ? [] : [{ id: "window", title: "เปิดในหน้าต่างใหม่", run: () => run(api.openChatWindow(chat.id, chat.name)) }]),
+    ],
+    [
+      {
+        id: "pin",
+        title: pinned ? "เลิกปักหมุด" : "ปักหมุด",
+        icon: pinned ? "pin.slash" : "pin",
+        run: () => run(api.setPinned(chat.id, "main", !pinned)),
+      },
+      { id: "hide", title: "ซ่อน", icon: "archivebox", run: () => run(api.hideChat(chat.id)) },
+      { id: "delete", title: "ลบ", icon: "trash", destructive: phone, run: () => confirmDelete(chat) },
+    ],
+    [
+      {
+        id: "mute",
+        title: chat.muted ? "เปิดแจ้งเตือน" : "ปิดแจ้งเตือน",
+        icon: chat.muted ? "bell" : "bell.slash",
+        run: () => run(api.setMuted(chat.id, !chat.muted)),
+      },
+      folderEntry(chat, list),
+      // Out of the folder the list shows it in, as dragging it out does.
+      ...(folder
+        ? [
+            {
+              id: "unfolder",
+              title: `นำออกจาก ${folderName(folder, list)}`,
+              icon: "folder.badge.minus",
+              run: () => run(api.moveToFolder(chat.id, folder.id, null)),
+            },
+          ]
+        : []),
+    ],
+  ];
 }
 
-/** Out of the folder the list shows it in, as dragging it out does. */
-function LeaveFolder({ chat }: { chat: Chat }) {
+/** Right-click on a chat row. */
+export function ChatActions({ chat }: { chat: Chat }) {
   const list = useChatList();
-  const id = list && folderOf(list).get(chat.id);
-  const folder = id && list.workspaces.find((w) => w.id === id);
-  if (!folder) return null;
-  return <Item onClick={() => run(api.moveToFolder(chat.id, folder.id, null))}>นำออกจาก {folderName(folder, list)}</Item>;
+  const peeked = useUi((s) => s.peek === chat.id);
+  return <MenuEntries sections={rowMenu(chat, list, peeked)} />;
+}
+
+// The menu iOS shows now, for the item chosen from it.
+let shown: MenuEntry[][] = [];
+const nextFrame = () => new Promise((done) => requestAnimationFrame(done));
+
+/** A long press on a chat row (a link, see ChatRow) asks for its menu. Away
+ *  from the iPhone Duo's cover screen the chat's card is drawn for a moment
+ *  for iOS to take a picture of and show over the menu; it shows the
+ *  messages without opening the chat, so LINE gets no read receipt. */
+async function answerChatMenu(token: number, chatId: string) {
+  const list = queryClient.getQueryData<ChatList>(q.chats.queryKey);
+  const chat = list?.chats.find((c) => c.id === chatId);
+  shown = chat ? rowMenu(chat, list, ui.state.peek === chatId) : [];
+  let card: { x: number; y: number; width: number; height: number } | null = null;
+  if (chat && !onCoverScreen()) {
+    // The card shows a spinner until the messages are in.
+    await Promise.race([queryClient.prefetchQuery(q.messages(chatId)), new Promise((done) => setTimeout(done, 400))]);
+    setUi({ menuCard: chatId });
+    await nextFrame();
+    await nextFrame();
+    const r = document.getElementById("menu-card")?.getBoundingClientRect();
+    if (r) card = { x: r.x, y: r.y, width: r.width, height: r.height };
+  }
+  try {
+    await invoke("plugin:native-tabbar|menu", { token, menu: shown, card });
+  } finally {
+    setUi({ menuCard: null });
+  }
+}
+
+/** The system context menu for chat rows on iOS (the native-tabbar plugin's
+ *  ChatMenus). A tap on the card opens the chat, which reads it. */
+export function useNativeChatMenu() {
+  useEffect(() => {
+    if (!phone) return;
+    const listeners = [
+      addPluginListener<{ token: number; chatId: string }>("native-tabbar", "chatMenu", (e) => {
+        answerChatMenu(e.token, e.chatId).catch((err) => notice(errorText(err)));
+      }),
+      addPluginListener<{ id: string }>("native-tabbar", "menuAction", (e) => findEntry(shown, e.id)?.run?.()),
+      addPluginListener<{ chatId: string }>("native-tabbar", "menuCommit", (e) => openChat(e.chatId)),
+    ];
+    return () => listeners.forEach((l) => l.then((x) => x.unregister()));
+  }, []);
 }
 
 /** Write the loaded messages as plain text, like LINE's "บันทึกแชท". */

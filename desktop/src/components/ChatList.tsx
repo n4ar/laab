@@ -41,10 +41,7 @@ export function ChatListColumn({ selected }: { selected: string | null }) {
   // chats flat.
   const grouped = filter === "all" && !query.trim();
   const rows = useMemo<ListRow[]>(
-    () =>
-      list && grouped
-        ? groupRows(list, chats, new Set(openFolders))
-        : chats.map((chat) => ({ kind: "chat", chat, folder: null })),
+    () => (list && grouped ? groupRows(list, chats, new Set(openFolders)) : chats.map((chat) => ({ kind: "chat", chat, folder: null }))),
     [list, grouped, chats, openFolders],
   );
   const visible = useMemo(() => rows.flatMap((r) => (r.kind === "chat" ? [r.chat] : [])), [rows]);
@@ -295,7 +292,11 @@ function Tabs() {
           as tall as the chat's header, their underline on its border. */}
       <div
         className={`flex gap-[18px] overflow-x-auto px-4 [scrollbar-width:none] ${
-          corner ? "h-[52px] items-stretch border-b border-separator" : phone ? "h-[42px] items-start pt-[12px]" : "drag h-[60px] items-start pt-[16px]"
+          corner
+            ? "h-[52px] items-stretch border-b border-separator"
+            : phone
+              ? "h-[42px] items-start pt-[12px]"
+              : "drag h-[60px] items-start pt-[16px]"
         }`}
         data-tauri-drag-region
       >
@@ -309,9 +310,7 @@ function Tabs() {
               {t.label}
               {unreadIn(t.id) && <span className="absolute -top-0.5 -right-2 h-[5px] w-[5px] rounded-full bg-line-green" />}
             </span>
-            {filter === t.id && (
-              <span className="absolute right-0 bottom-0 left-0 h-0.5 rounded bg-primary" />
-            )}
+            {filter === t.id && <span className="absolute right-0 bottom-0 left-0 h-0.5 rounded bg-primary" />}
           </button>
         ))}
         <button
@@ -426,7 +425,9 @@ function FolderPicture({ chats, open }: { chats: Chat[]; open: boolean }) {
       <div className={`absolute inset-0 grid place-items-center text-line-green ${swap} ${open ? "" : "scale-75 opacity-0"}`}>
         <FolderIcon size={26} />
       </div>
-      <div className={`absolute inset-0 flex flex-wrap content-center justify-center gap-[3px] p-[5px] ${swap} ${open ? "scale-75 opacity-0" : ""}`}>
+      <div
+        className={`absolute inset-0 flex flex-wrap content-center justify-center gap-[3px] p-[5px] ${swap} ${open ? "scale-75 opacity-0" : ""}`}
+      >
         {chats.slice(0, 4).map((c) => (
           <Avatar key={c.id} id={c.id} name={c.name} size={19} picture={c.picture} local={c.avatar} />
         ))}
@@ -446,7 +447,13 @@ function FolderTitle({ folder, list }: { folder: Workspace; list: ChatList }) {
   }, [editing]);
   const shown = folderName(folder, list);
   if (!editing) {
-    return <span className={`truncate ${phone ? "text-[16px] font-medium" : "text-[13.5px]"} ${folder.name ? "text-primary" : "text-secondary"}`}>{shown}</span>;
+    return (
+      <span
+        className={`truncate ${phone ? "text-[16px] font-medium" : "text-[13.5px]"} ${folder.name ? "text-primary" : "text-secondary"}`}
+      >
+        {shown}
+      </span>
+    );
   }
   const finish = (name: string | null) => {
     if (done.current) return;
@@ -527,70 +534,97 @@ export function ChatRow({
   const previewing = useUi((s) => s.preview === chat.id);
   const peeked = useUi((s) => s.peek === chat.id);
   const chip = !phone && !selected && (hover || previewing);
-  return (
-    <Ctx menu={<ChatActions chat={chat} />} className="block">
+  const row = (
+    <div
+      data-drop="chat"
+      data-id={chat.id}
+      data-folder={folder ?? undefined}
+      onMouseEnter={() => {
+        if (phone) return;
+        setHover(true);
+        if (!selected) hoverPreview(chat.id);
+      }}
+      onMouseLeave={() => setHover(false)}
+      onPointerDown={drag ? (e) => pressChat(e, chat, folder, scroller?.current ?? null) : undefined}
+      onClick={phone ? undefined : () => !clickEndsDrag() && openChat(chat.id)}
+      className={`flex h-[72px] cursor-default items-center gap-3 px-4 transition-opacity duration-150 ease-out active:bg-row-selected ${folder ? "pl-7" : ""} ${dragged ? "opacity-40" : ""} ${
+        merge || intoFolder
+          ? "bg-line-green/12"
+          : selected
+            ? "bg-row-selected"
+            : hover || previewing
+              ? "bg-row-hover"
+              : folder
+                ? "bg-row-hover/60"
+                : ""
+      }`}
+    >
+      {/* The chat it would share a folder with grows a little, as in Discord. */}
       <div
-        data-drop="chat"
-        data-id={chat.id}
-        data-folder={folder ?? undefined}
-        onMouseEnter={() => {
-          if (phone) return;
-          setHover(true);
-          if (!selected) hoverPreview(chat.id);
-        }}
-        onMouseLeave={() => setHover(false)}
-        onPointerDown={drag ? (e) => pressChat(e, chat, folder, scroller?.current ?? null) : undefined}
-        onClick={() => !clickEndsDrag() && openChat(chat.id)}
-        className={`flex h-[72px] cursor-default items-center gap-3 px-4 transition-opacity duration-150 ease-out active:bg-row-selected ${folder ? "pl-7" : ""} ${dragged ? "opacity-40" : ""} ${
-          merge || intoFolder ? "bg-line-green/12" : selected ? "bg-row-selected" : hover || previewing ? "bg-row-hover" : folder ? "bg-row-hover/60" : ""
+        className={`relative rounded-full transition-[scale] duration-150 ease-out motion-reduce:transition-none ${
+          merge ? "scale-[1.06] ring-2 ring-line-green ring-offset-2 ring-offset-list" : ""
         }`}
       >
-        {/* The chat it would share a folder with grows a little, as in Discord. */}
-        <div
-          className={`relative rounded-full transition-[scale] duration-150 ease-out motion-reduce:transition-none ${
-            merge ? "scale-[1.06] ring-2 ring-line-green ring-offset-2 ring-offset-list" : ""
-          }`}
-        >
-          {keep ? (
-            <div className="grid h-[52px] w-[52px] place-items-center rounded-full bg-line-green text-white">
-              <BookmarkIcon size={24} strokeWidth={2.2} />
-            </div>
+        {keep ? (
+          <div className="grid h-[52px] w-[52px] place-items-center rounded-full bg-line-green text-white">
+            <BookmarkIcon size={24} strokeWidth={2.2} />
+          </div>
+        ) : (
+          <Avatar id={chat.id} name={chat.name} size={52} picture={chat.picture} local={chat.avatar} />
+        )}
+        {pinned && (
+          <span
+            className="absolute -top-0.5 -left-0.5 grid place-items-center rounded-full bg-pin text-white ring-2 ring-list"
+            style={{ width: 52 * 0.36, height: 52 * 0.36 }}
+          >
+            <PinIcon size={11} style={{ transform: "rotate(45deg)" }} />
+          </span>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          {peeked && <EyeIcon size={phone ? 15 : 12} className="shrink-0 text-line-green" />}
+          <span className={`truncate text-primary ${phone ? "text-[16px] font-medium" : "text-[13.5px]"}`}>
+            {keep ? "Keep Memo" : <Highlight text={chat.name} query={query} />}
+          </span>
+          {chat.kind === "group" && chat.memberCount ? (
+            <span className="shrink-0 text-[13.5px] text-primary">({chat.memberCount})</span>
+          ) : null}
+          {chat.muted && <BellSlashIcon size={10} className="shrink-0 text-secondary" />}
+          {chip ? (
+            <PreviewChip chatId={chat.id} active={previewing} />
           ) : (
-            <Avatar id={chat.id} name={chat.name} size={52} picture={chat.picture} local={chat.avatar} />
-          )}
-          {pinned && (
-            <span
-              className="absolute -top-0.5 -left-0.5 grid place-items-center rounded-full bg-pin text-white ring-2 ring-list"
-              style={{ width: 52 * 0.36, height: 52 * 0.36 }}
-            >
-              <PinIcon size={11} style={{ transform: "rotate(45deg)" }} />
-            </span>
+            <span className="ml-auto shrink-0 text-[11px] text-secondary">{listLabel(chat.lastActivity)}</span>
           )}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            {peeked && <EyeIcon size={phone ? 15 : 12} className="shrink-0 text-line-green" />}
-            <span className={`truncate text-primary ${phone ? "text-[16px] font-medium" : "text-[13.5px]"}`}>
-              {keep ? "Keep Memo" : <Highlight text={chat.name} query={query} />}
-            </span>
-            {chat.kind === "group" && chat.memberCount ? (
-              <span className="shrink-0 text-[13.5px] text-primary">({chat.memberCount})</span>
-            ) : null}
-            {chat.muted && <BellSlashIcon size={10} className="shrink-0 text-secondary" />}
-            {chip ? (
-              <PreviewChip chatId={chat.id} active={previewing} />
-            ) : (
-              <span className="ml-auto shrink-0 text-[11px] text-secondary">{listLabel(chat.lastActivity)}</span>
-            )}
-          </div>
-          <div className="mt-0.5 flex items-start gap-2">
-            <span className={`line-clamp-2 flex-1 leading-[1.35] text-secondary ${phone ? "text-[13.5px]" : "text-[12px]"}`}>
-              <Preview text={listPreview(chat.preview)} />
-            </span>
-            <Badge count={chat.unread} className={chat.muted ? "bg-secondary!" : ""} />
-          </div>
+        <div className="mt-0.5 flex items-start gap-2">
+          <span className={`line-clamp-2 flex-1 leading-[1.35] text-secondary ${phone ? "text-[13.5px]" : "text-[12px]"}`}>
+            <Preview text={listPreview(chat.preview)} />
+          </span>
+          <Badge count={chat.unread} className={chat.muted ? "bg-secondary!" : ""} />
         </div>
       </div>
+    </div>
+  );
+  // An iPhone gets the system's context menu for a long-pressed link (the
+  // native-tabbar plugin's ChatMenus), with the chat's card over it. WebKit
+  // asks only about the element that takes the click, so the link takes it.
+  if (phone)
+    return (
+      <a
+        href={`#chat=${chat.id}`}
+        className="chat-link block"
+        onClick={(e) => {
+          e.preventDefault();
+          openChat(chat.id);
+        }}
+      >
+        {row}
+      </a>
+    );
+  return (
+    <Ctx menu={<ChatActions chat={chat} />} className="block">
+      {row}
     </Ctx>
   );
 }

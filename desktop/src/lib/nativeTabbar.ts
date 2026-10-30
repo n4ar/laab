@@ -35,6 +35,13 @@ export interface MenuEntry {
   run?: () => void;
 }
 
+export const findEntry = (sections: MenuEntry[][], id: string): MenuEntry | undefined => {
+  for (const e of sections.flat()) {
+    const hit = e.id === id ? e : e.children && findEntry(e.children, id);
+    if (hit) return hit;
+  }
+};
+
 export interface NativeTabState {
   tabs: NativeTab[];
   selected: string;
