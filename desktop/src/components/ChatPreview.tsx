@@ -9,7 +9,7 @@ import { phone, useWide } from "../lib/platform";
 import { dismissTop, pushDismiss, setUi, ui, useUi } from "../lib/ui";
 import { Avatar } from "./Avatar";
 import { useNames, useOlder } from "./ChatView";
-import { DuoHint } from "./DuoHint";
+import { DuoModel } from "./DuoModel";
 import { CloseIcon, EyeIcon } from "./Icons";
 import type { RowContext } from "./MessageRow";
 import { Sheet } from "./Sheet";
@@ -287,14 +287,14 @@ export function PeekHint() {
   const name = chat?.name ?? chatId;
   return (
     <div
-      className="fixed z-40 rounded-3xl bg-popover px-4 pt-5 pb-3 text-center text-primary shadow-[0_10px_40px_rgba(0,0,0,0.25)] motion-safe:animate-row-in"
+      className="fixed z-40 rounded-3xl bg-popover px-4 pt-1 pb-3 text-center text-primary shadow-[0_10px_40px_rgba(0,0,0,0.25)] motion-safe:animate-row-in"
       style={{
         left: "max(12px, env(safe-area-inset-left))",
         right: "max(12px, env(safe-area-inset-right))",
         bottom: "calc(12px + env(safe-area-inset-bottom))",
       }}
     >
-      <DuoHint />
+      <DuoModel name={name} />
       <div className="flex items-center justify-center gap-2">
         <Avatar id={chatId} name={name} size={26} picture={chat?.picture} local={chat?.avatar} />
         <span className="truncate text-[17px] font-semibold">{name}</span>
