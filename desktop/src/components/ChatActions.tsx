@@ -1,11 +1,13 @@
 import { Menu } from "@base-ui/react/menu";
+import { Fragment } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { api, errorText, messageLimit, useChatList, usePeople } from "../lib/api";
 import { folderName, folderOf, isGroup } from "../lib/chatList";
 import { closeChat } from "../lib/nav";
 import { phone } from "../lib/platform";
 import { clock, dayHeader } from "../lib/time";
-import type { Chat } from "../lib/types";
+import type { Chat, ChatList } from "../lib/types";
+import type { MenuEntry } from "../lib/nativeTabbar";
 import { notice, setUi, useUi } from "../lib/ui";
 import { itemClass, popupClass, Separator } from "./kit";
 import { onCoverScreen, pickPeek, showPreview } from "./ChatPreview";
@@ -22,38 +24,54 @@ function Item({ onClick, children }: { onClick: () => void; children: React.Reac
 }
 
 /** LAAB's chat folders (LINE edits them from the tab bar instead). */
-function FolderMenu({ chat }: { chat: Chat }) {
-  const list = useChatList();
+function folderEntry(chat: Chat, list: ChatList | undefined): MenuEntry {
   const folders = (list?.workspaces ?? []).filter((w) => w.id !== "main");
+  const ticks = folders.map((f) => {
+    const inside = list?.pins[f.id]?.includes(chat.id) ?? false;
+    return { id: `folder:${f.id}`, title: folderName(f, list), checked: inside, run: () => run(api.setPinned(chat.id, f.id, !inside)) };
+  });
+  const create = { id: "folder:new", title: "สร้างโฟลเดอร์แชท…", run: () => setUi({ folderDialog: { chatId: chat.id } }) };
+  return { id: "folder", title: "เพิ่มในโฟลเดอร์", icon: "folder", children: ticks.length ? [ticks, [create]] : [[create]] };
+}
+
+function SubmenuEntry({ entry }: { entry: MenuEntry }) {
   return (
     <Menu.SubmenuRoot>
       <Menu.SubmenuTrigger className={`${itemClass} justify-between`}>
-        เพิ่มในโฟลเดอร์ <span className="opacity-60">›</span>
+        {entry.title} <span className="opacity-60">›</span>
       </Menu.SubmenuTrigger>
       <Menu.Portal>
         <Menu.Positioner className="z-50 outline-none" sideOffset={4}>
           <Menu.Popup className={popupClass}>
-            {folders.map((f) => {
-              const inside = list?.pins[f.id]?.includes(chat.id) ?? false;
-              return (
-                <Menu.CheckboxItem
-                  key={f.id}
-                  className={itemClass}
-                  checked={inside}
-                  onCheckedChange={(v) => run(api.setPinned(chat.id, f.id, v))}
-                >
-                  <span className="w-4 text-center">{inside ? "✓" : ""}</span>
-                  {folderName(f, list)}
-                </Menu.CheckboxItem>
-              );
-            })}
-            {folders.length > 0 && <Separator />}
-            <Item onClick={() => setUi({ folderDialog: { chatId: chat.id } })}>สร้างโฟลเดอร์แชท…</Item>
+            <MenuEntries sections={entry.children ?? []} />
           </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
     </Menu.SubmenuRoot>
   );
+}
+
+/** A menu described as data, drawn as LAAB's own menu. */
+function MenuEntries({ sections }: { sections: MenuEntry[][] }) {
+  return sections.map((section, i) => (
+    <Fragment key={i}>
+      {i > 0 && <Separator />}
+      {section.map((e) =>
+        e.children ? (
+          <SubmenuEntry key={e.id} entry={e} />
+        ) : e.checked !== undefined ? (
+          <Menu.CheckboxItem key={e.id} className={itemClass} checked={e.checked} onCheckedChange={() => e.run?.()}>
+            <span className="w-4 text-center">{e.checked ? "✓" : ""}</span>
+            {e.title}
+          </Menu.CheckboxItem>
+        ) : (
+          <Item key={e.id} onClick={() => e.run?.()}>
+            {e.title}
+          </Item>
+        ),
+      )}
+    </Fragment>
+  ));
 }
 
 function confirmDelete(chat: Chat) {
@@ -88,7 +106,7 @@ export function ChatActions({ chat }: { chat: Chat }) {
       <Item onClick={() => confirmDelete(chat)}>ลบ</Item>
       <Separator />
       <Item onClick={() => run(api.setMuted(chat.id, !chat.muted))}>{chat.muted ? "เปิดแจ้งเตือน" : "ปิดแจ้งเตือน"}</Item>
-      <FolderMenu chat={chat} />
+      <SubmenuEntry entry={folderEntry(chat, list)} />
       <LeaveFolder chat={chat} />
     </>
   );
@@ -137,59 +155,67 @@ async function exportChat(chat: Chat, name: (mid: string) => string) {
   notice("บันทึกแชทแล้ว");
 }
 
-/** The chat header's ⋮ menu, in LINE for Mac's order, without what LAAB
- *  cannot do (เชิญ, โหวต, ตั้งค่า, รายงานปัญหา). */
-export function HeaderMenu({ chat, secure }: { chat: Chat; secure: boolean }) {
+/** The chat's menu, in LINE for Mac's order, without what LAAB cannot do
+ *  (เชิญ, โหวต, ตั้งค่า, รายงานปัญหา): the header's ⋮, and the system's
+ *  overflow menu where iOS puts the chat's buttons in the vertical bar. */
+export function useChatMenu(chat: Chat | undefined): MenuEntry[][] {
   const people = usePeople();
   const list = useChatList();
+  if (!chat) return [];
   const group = isGroup(chat);
   const name = (mid: string) => list?.chats.find((c) => c.id === mid)?.name ?? people[mid]?.name ?? "สมาชิก";
+  const aux = (kind: "albums" | "media", tab: string) => () => run(api.openAuxWindow(kind, chat.id, chat.name, tab));
+  const confirm = (title: string, body: string, action: string, go: () => Promise<unknown>) => () =>
+    setUi({ confirm: { title, body, action, run: go } });
+  const last: MenuEntry[] = [
+    { id: "reload", title: "โหลดข้อความใหม่", icon: "arrow.clockwise", run: () => run(api.reloadChat(chat.id)) },
+    folderEntry(chat, list),
+  ];
+  if (group)
+    last.push({
+      id: "leave",
+      title: "ออกจากกลุ่ม",
+      icon: "rectangle.portrait.and.arrow.right",
+      destructive: true,
+      run: confirm("ต้องการออกจากกลุ่มนี้หรือไม่", "ประวัติแชทและรายชื่อสมาชิกจะถูกลบ", "ออกจากกลุ่ม", () =>
+        api.leaveGroup(chat.id).then(closeChat),
+      ),
+    });
+  else if (chat.id.startsWith("u"))
+    last.push({
+      id: "block",
+      title: "บล็อก",
+      icon: "hand.raised",
+      destructive: true,
+      run: confirm(`ต้องการบล็อก ${chat.name} หรือไม่`, "จะไม่ได้รับข้อความหรือการโทรจากบัญชีนี้", "บล็อก", () =>
+        api.setBlocked(chat.id, true),
+      ),
+    });
+  return [
+    [
+      {
+        id: "mute",
+        title: chat.muted ? "เปิดแจ้งเตือน" : "ปิดแจ้งเตือน",
+        icon: chat.muted ? "bell" : "bell.slash",
+        run: () => run(api.setMuted(chat.id, !chat.muted)),
+      },
+    ],
+    [
+      ...(group ? [{ id: "albums", title: "อัลบั้ม", icon: "photo.on.rectangle", run: aux("albums", "albums") }] : []),
+      { id: "media", title: "รูป & วิดีโอ", icon: "photo", run: aux("media", "media") },
+      { id: "files", title: "ไฟล์", icon: "doc", run: aux("media", "files") },
+      { id: "links", title: "ลิงก์", icon: "link", run: aux("media", "links") },
+    ],
+    [{ id: "export", title: "บันทึกแชท", icon: "square.and.arrow.down", run: () => run(exportChat(chat, name)) }],
+    last,
+  ];
+}
+
+export function HeaderMenu({ chat, secure }: { chat: Chat; secure: boolean }) {
+  const sections = useChatMenu(chat);
   return (
     <>
-      <Item onClick={() => run(api.setMuted(chat.id, !chat.muted))}>{chat.muted ? "เปิดแจ้งเตือน" : "ปิดแจ้งเตือน"}</Item>
-      <Separator />
-      {group && <Item onClick={() => run(api.openAuxWindow("albums", chat.id, chat.name, "albums"))}>อัลบั้ม</Item>}
-      <Item onClick={() => run(api.openAuxWindow("media", chat.id, chat.name, "media"))}>รูป & วิดีโอ</Item>
-      <Item onClick={() => run(api.openAuxWindow("media", chat.id, chat.name, "files"))}>ไฟล์</Item>
-      <Item onClick={() => run(api.openAuxWindow("media", chat.id, chat.name, "links"))}>ลิงก์</Item>
-      <Separator />
-      <Item onClick={() => run(exportChat(chat, name))}>บันทึกแชท</Item>
-      <Separator />
-      <Item onClick={() => run(api.reloadChat(chat.id))}>โหลดข้อความใหม่</Item>
-      <FolderMenu chat={chat} />
-      {group ? (
-        <Item
-          onClick={() =>
-            setUi({
-              confirm: {
-                title: "ต้องการออกจากกลุ่มนี้หรือไม่",
-                body: "ประวัติแชทและรายชื่อสมาชิกจะถูกลบ",
-                action: "ออกจากกลุ่ม",
-                run: () => api.leaveGroup(chat.id).then(closeChat),
-              },
-            })
-          }
-        >
-          ออกจากกลุ่ม
-        </Item>
-      ) : (
-        chat.id.startsWith("u") && (
-          <Item
-            onClick={() =>
-              setUi({
-                confirm: {
-                  title: `ต้องการบล็อก ${chat.name} หรือไม่`,
-                  body: "จะไม่ได้รับข้อความหรือการโทรจากบัญชีนี้",
-                  action: "บล็อก",
-                  run: () => api.setBlocked(chat.id, true),
-                },
-              })
-            }
-          >
-            บล็อก
-          </Item>
-        )
-      )}
+      <MenuEntries sections={sections} />
       {secure && <Separator />}
       {secure && (
         <div className="flex gap-1.5 px-4 py-1 text-[12px] leading-snug text-secondary">

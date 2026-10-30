@@ -1,16 +1,18 @@
 import { listen } from "@tauri-apps/api/event";
 import { onAction } from "@tauri-apps/plugin-notification";
 import { AnimatePresence, motion, useDragControls } from "motion/react";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { api, errorText, useChatList, useLoginPage, useSession } from "../lib/api";
+import { api, errorText, q, useChatList, useLoginPage, useSession } from "../lib/api";
 import { isGroup, unreadTotal } from "../lib/chatList";
 import { closeChat, openChat } from "../lib/nav";
-import { type SideButton, useNativeTabbar } from "../lib/nativeTabbar";
+import { type MenuEntry, type SideButton, useNativeTabbar } from "../lib/nativeTabbar";
 import { peekOpen } from "../lib/peek";
 import { ios, useWide } from "../lib/platform";
 import { LAST_CHAT_KEY, notice, pushDismiss, setUi, ui, useUi } from "../lib/ui";
 import { Avatar } from "./Avatar";
 import { ChatListColumn } from "./ChatList";
+import { useChatMenu } from "./ChatActions";
 import { PeekHint, PeekView } from "./ChatPreview";
 import { ChatView } from "./ChatView";
 import { ConfirmDialog, Sheets } from "./Dialogs";
@@ -36,8 +38,7 @@ export function PhoneLayout({ chatId }: { chatId: string | null }) {
   const list = useChatList();
   const wide = useWide();
   const loginPage = useLoginPage();
-  const column = useRef<HTMLDivElement>(null);
-  useSystemTabBar(column, { chatId, signedOut: loginPage, wide });
+  useSystemTabBar({ chatId, signedOut: loginPage, wide });
 
   // Unfolded, reopen the last chat as the desktop does; the cover screen
   // starts on the chat list, as LINE does.
@@ -108,7 +109,6 @@ export function PhoneLayout({ chatId }: { chatId: string | null }) {
     return (
       <div className="safe-x flex h-full bg-chat">
         <div
-          ref={column}
           className="h-full shrink-0 border-r border-separator"
           style={{ width: book ? `calc(${book.x}px - env(safe-area-inset-left))` : "clamp(280px, 42vw, 360px)" }}
         >
@@ -200,16 +200,13 @@ const TABS = [
   { id: "more", title: "ตั้งค่า", icon: "gearshape", selectedIcon: "gearshape.fill" },
 ] as const;
 
-/** On iOS the bars are the system's own, laid over the page, with Liquid
- *  Glass on iOS 26+. Where iOS has a vertical bar (the iPhone Duo's cover
- *  screen) the tabs and the chat's buttons go in that column, as Apple's apps
- *  put theirs, with the tabs at the bottom where a tab bar would be; elsewhere the tabs are a tab bar at the bottom, under the list
- *  column when there are two panes. The bars step aside for anything drawn
- *  over the page, which they would otherwise cover. */
-function useSystemTabBar(
-  column: React.RefObject<HTMLDivElement | null>,
-  { chatId, signedOut, wide }: { chatId: string | null; signedOut: boolean; wide: boolean },
-) {
+/** On iOS the bars are the system's own: a tab bar, and the chat's buttons as
+ *  bar button items, with Liquid Glass on iOS 26+. Where iOS has a vertical
+ *  bar (the iPhone Duo) it puts them all in that column, the chat's menu in
+ *  its own overflow menu; elsewhere the tabs are a tab bar at the bottom and
+ *  the page's headers keep their buttons. The bars step aside for anything
+ *  drawn over the page, which they would otherwise cover. */
+function useSystemTabBar({ chatId, signedOut, wide }: { chatId: string | null; signedOut: boolean; wide: boolean }) {
   const page = useUi((s) => s.railPage);
   const list = useChatList();
   const unread = unreadTotal(list);
@@ -231,17 +228,6 @@ function useSystemTabBar(
         s.preview
       ),
   );
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const el = column.current;
-    if (!wide || !el) return setWidth(0);
-    const measure = () => setWidth(Math.round(el.getBoundingClientRect().right));
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    measure();
-    return () => ro.disconnect();
-  }, [wide, column]);
-
   const pushed = !wide && !!chatId;
   const badge = unread > 0 ? (unread > 999 ? "999+" : String(unread)) : null;
   const tabs = TABS.map((t) => ({ ...t, badge: t.id === "chats" ? badge : null }));
@@ -249,7 +235,18 @@ function useSystemTabBar(
     ? [
         { id: "search", icon: "text.magnifyingglass" },
         ...(chat && isGroup(chat) ? [{ id: "notes", icon: "note.text" }] : []),
-        { id: "more", icon: "ellipsis" },
+      ]
+    : [];
+  // Letter Sealing: LINE marks encrypted messages with e2eeVersion.
+  const { data: messages } = useQuery({ ...q.messages(chatId ?? ""), enabled: !!chatId });
+  const secure = !!messages?.some((m) => "e2eeVersion" in m.metadata);
+  const chatMenu = useChatMenu(chat);
+  const menu: MenuEntry[][] = chatId
+    ? [
+        ...chatMenu,
+        ...(secure
+          ? [[{ id: "secure", title: "ห้องแชทนี้ปลอดภัยด้วย Letter Sealing", icon: "lock", disabled: true }]]
+          : []),
       ]
     : [];
   const tabGroup: SideButton[] = tabs.map((t) => ({
@@ -275,8 +272,8 @@ function useSystemTabBar(
           // The bottom bar leaves for a pushed chat; the vertical bar stays
           // and shows the chat's buttons instead.
           bottomHidden: pushed,
-          ...(wide && width ? { x: 0, width } : {}),
           side,
+          menu,
         }
       : null,
     {
@@ -286,7 +283,7 @@ function useSystemTabBar(
         if (id.startsWith("tab:")) setUi({ railPage: id.slice(4) as typeof page, searchDock: null });
         else if (id === "back") closeChat();
         else if (id === "search") setUi({ chatSearch: Date.now() });
-        else if (id === "more") setUi({ chatMenuOpen: true });
+        else if (id.startsWith("menu:")) findEntry(menu, id.slice(5))?.run?.();
         else if (id === "compose") setUi({ searchOpen: true, searchInitial: "" });
         else if (id === "notes" && chatId)
           api.openAuxWindow("albums", chatId, chat?.name ?? "", "notes").catch((e) => notice(errorText(e)));
@@ -294,6 +291,13 @@ function useSystemTabBar(
     },
   );
 }
+
+const findEntry = (sections: MenuEntry[][], id: string): MenuEntry | undefined => {
+  for (const e of sections.flat()) {
+    const hit = e.id === id ? e : e.children && findEntry(e.children, id);
+    if (hit) return hit;
+  }
+};
 
 /** Photos and videos over the page, as the desktop's viewer window. */
 function Gallery() {
