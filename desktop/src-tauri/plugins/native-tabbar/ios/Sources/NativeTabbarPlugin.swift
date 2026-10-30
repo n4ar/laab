@@ -448,6 +448,8 @@ final class ChatMenus: NSObject, WKUIDelegate {
   private var token = 0
   private var pending: (token: Int, done: (UIContextMenuConfiguration?) -> Void)?
   private var frozen: UIView?
+  /// The item chosen from the menu, run once the menu has closed.
+  private var chosen: String?
 
   init(webview: WKWebView) {
     self.webview = webview
@@ -483,6 +485,7 @@ final class ChatMenus: NSObject, WKUIDelegate {
     token += 1
     let token = token
     pending = (token, completionHandler)
+    showLiftedRow()
     freeze()
     onRequest?(token, chat)
     // A page that never answers must not hold the press forever.
@@ -500,8 +503,9 @@ final class ChatMenus: NSObject, WKUIDelegate {
       return
     }
     self.pending = nil
-    let run = onAction
-    let menu = UIMenu(children: MenuItemArgs.elements(args.menu) { id in run?(id) })
+    // The lifted row flies back over the page while the menu closes; an
+    // item that opens something (ดูโดยไม่อ่าน's card or sheet) waits for it.
+    let menu = UIMenu(children: MenuItemArgs.elements(args.menu) { [weak self] id in self?.chosen = id })
     let show = { (card: UIImage?) in
       pending.done(
         UIContextMenuConfiguration(
@@ -541,8 +545,41 @@ final class ChatMenus: NSObject, WKUIDelegate {
     frozen = nil
   }
 
+  /// WebKit calls this as the menu starts to close. The row lifted for the
+  /// menu flies back into place, and WebKit keeps it there, over the real
+  /// row, for almost a second more; anything the chosen item opens
+  /// (ดูโดยไม่อ่าน's card or sheet) would sit under it. So the item waits for
+  /// the closing animation (about 0.33 s in the simulator), and the leftover
+  /// row is hidden until the next long press, when WebKit lifts a row again.
   func webView(_ webView: WKWebView, contextMenuDidEndForElement elementInfo: WKContextMenuElementInfo) {
     thaw()
+    guard let id = chosen else { return }
+    chosen = nil
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
+      guard let self else { return }
+      self.hideLiftedRow()
+      self.onAction?(id)
+    }
+  }
+
+  private var hidden: [UIView] = []
+
+  private func hideLiftedRow() {
+    guard let webview else { return }
+    func find(_ view: UIView) {
+      if NSStringFromClass(type(of: view)).contains("TargetedPreviewContainer") {
+        view.isHidden = true
+        hidden.append(view)
+        return
+      }
+      view.subviews.forEach(find)
+    }
+    find(webview)
+  }
+
+  private func showLiftedRow() {
+    hidden.forEach { $0.isHidden = false }
+    hidden = []
   }
 
   func webView(
