@@ -38,9 +38,10 @@ export function leavePreview() {
  *  peek at instead of showing it. */
 export const onCoverScreen = () =>
   phone &&
+  // The inner screen in landscape has a vertical bar too; the cover is narrow.
+  !window.matchMedia("(min-width: 600px)").matches &&
   (ui.state.hinge?.status === "closed" ||
-    // No hinge reading yet (the simulator sends none until it first moves);
-    // the vertical bar is shown only on the cover screen.
+    // No hinge reading yet (the simulator sends none until it first moves).
     (!ui.state.hinge && ui.state.sideBar != null));
 
 export function pickPeek(chatId: string | null) {
@@ -266,7 +267,7 @@ export function PeekView() {
             <EyeIcon size={14} />
             ยังไม่ขึ้นว่าอ่านแล้ว
           </div>
-          <div className="text-[12px] text-secondary">ระวัง กางสุดจะขึ้นว่าอ่านแล้ว</div>
+          <div className="text-[12px] text-secondary">กางจนสุดเมื่อไหร่ จะขึ้นว่าอ่านแล้ว</div>
         </div>
         <div className="safe-top safe-bottom flex min-w-0 flex-1 flex-col" style={{ marginLeft: gap }}>
           <PreviewMessages chatId={chatId} />
@@ -294,12 +295,16 @@ export function PeekHint() {
         bottom: "calc(12px + env(safe-area-inset-bottom))",
       }}
     >
-      <DuoModel name={name} />
+      <DuoModel chatId={chatId} />
       <div className="flex items-center justify-center gap-2">
         <Avatar id={chatId} name={name} size={26} picture={chat?.picture} local={chat?.avatar} />
         <span className="truncate text-[17px] font-semibold">{name}</span>
       </div>
-      <div className="mt-1 text-[13px] text-secondary">ระวัง กางสุดจะขึ้นว่าอ่านแล้ว</div>
+      <div className="mt-1 text-[13px] leading-snug text-secondary">
+        ค่อย ๆ แง้มจอเพื่อแอบอ่าน
+        <br />
+        กางจนสุดเมื่อไหร่ จะขึ้นว่าอ่านแล้ว
+      </div>
       <button onClick={() => pickPeek(null)} className="mt-1.5 h-9 px-4 text-[15px] text-line-green">
         ยกเลิก
       </button>
