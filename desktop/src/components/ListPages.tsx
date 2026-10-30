@@ -75,7 +75,7 @@ export function FriendsPage() {
           />
         </label>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto" style={{ paddingBottom: "calc(16px + var(--tabbar-h, 0px))" }}>
+      <div className="min-h-0 flex-1 overflow-y-auto" style={{ paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}>
         {me && !q && (
           <div className="flex items-center gap-3 px-4 py-2.5">
             <Avatar id={me.mid} name={me.displayName} picture={me.picture} size={52} />

@@ -15,7 +15,7 @@ import {
   targets,
 } from "../lib/mentions";
 import type { ChatMember, DraftMention } from "../lib/types";
-import { phone } from "../lib/platform";
+import { phone, useWide } from "../lib/platform";
 import { pushDismiss, setUi, useUi } from "../lib/ui";
 import { Avatar } from "./Avatar";
 import { CloseIcon, PaperclipIcon, PhotoIcon, SendIcon, SmileIcon, WarningIcon } from "./Icons";
@@ -62,6 +62,9 @@ export const Composer = forwardRef<
   const [failure, setFailure] = useState<{ title: string; detail: string; retry: (() => void) | null } | null>(null);
   const pickerOpenedAt = useRef(0);
   const focusRequest = useUi((s) => s.composerFocus);
+  // Two panes with no vertical bar: the system's tab bar floats below.
+  const wide = useWide();
+  const tabsBelow = useUi((s) => phone && wide && !s.sideBar);
   // Replying to or editing a message (from its right-click menu).
   const modeAll = useUi((s) => s.composerMode);
   const mode = modeAll?.chatId === chatId ? modeAll : null;
@@ -302,7 +305,7 @@ export const Composer = forwardRef<
 
   return (
     <div
-      className={`relative border-t border-separator bg-chat ${phone ? "safe-bottom px-1.5 pt-1.5 pb-1.5" : "px-[14px] pt-3 pb-1.5"}`}
+      className={`relative border-t border-separator bg-chat ${phone ? `px-1.5 pt-1.5 ${tabsBelow ? "tabbar-gap" : "safe-bottom pb-1.5"}` : "px-[14px] pt-3 pb-1.5"}`}
       onClick={() => !phone && area.current?.focus()}
     >
       {pickerOpen && (

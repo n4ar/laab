@@ -42,7 +42,7 @@ export function SearchDock() {
       <div className="px-4 pb-1.5 text-[12px] text-secondary">
         {isFetching && !hits.length ? <Spinner size={14} /> : `${hits.length} ผลลัพธ์`}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto" style={{ paddingBottom: "var(--tabbar-h, 0px)" }}>
+      <div className="min-h-0 flex-1 overflow-y-auto" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         {hits.map((h, i) => (
           <HitRow
             key={`${h.kind}:${h.chatId}:${h.messageId ?? ""}`}

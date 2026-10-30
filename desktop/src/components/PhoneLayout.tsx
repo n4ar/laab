@@ -165,7 +165,7 @@ function PushedChat({ chatId }: { chatId: string }) {
       {/* Below the header, so the back button stays tappable. */}
       <div
         className="absolute bottom-0 left-0 z-20 w-4 touch-none"
-        style={{ top: "calc(var(--safe-top) + 56px)" }}
+        style={{ top: "calc(var(--safe-top-clear) + 56px)" }}
         onPointerDown={(e) => drag.start(e)}
       />
     </motion.div>
@@ -358,7 +358,7 @@ function MorePage() {
   return (
     <div className="flex h-full flex-col bg-list">
       <PhoneHeader title="ตั้งค่า" />
-      <div className="min-h-0 flex-1 overflow-y-auto" style={{ paddingBottom: "var(--tabbar-h, 0px)" }}>
+      <div className="min-h-0 flex-1 overflow-y-auto" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         {p && (
           <div className="flex items-center gap-3.5 px-4 py-3">
             <Avatar id={p.mid} name={p.displayName} picture={p.picture} size={60} />

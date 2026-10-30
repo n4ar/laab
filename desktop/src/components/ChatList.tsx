@@ -94,7 +94,7 @@ export function ChatListColumn({ selected }: { selected: string | null }) {
     <div className="flex h-full flex-col bg-list">
       {phone && (
         // LINE for iPhone: a large "แชท" title over the folder tabs.
-        <div className="safe-top flex shrink-0 items-end px-4 pt-2">
+        <div className="safe-top-clear flex shrink-0 items-end px-4 pt-2">
           <h1 className="text-[24px] font-bold">แชท</h1>
         </div>
       )}
@@ -223,15 +223,16 @@ export function ChatListColumn({ selected }: { selected: string | null }) {
         {!sideBar && (
           <button
             className="sticky left-full mr-4 grid h-13 w-13 place-items-center rounded-full bg-line-green text-white shadow-[0_3px_12px_rgba(0,0,0,0.25)] transition-transform duration-150 ease-out active:scale-[0.96]"
-            // Over the iOS tab bar, which the list scrolls under (--tabbar-h).
-            style={{ marginTop: -52, bottom: "calc(16px + var(--tabbar-h, 0px))" }}
+            // Over the iOS tab bar, which the list scrolls under and which
+            // the bottom inset includes.
+            style={{ marginTop: -52, bottom: "calc(16px + env(safe-area-inset-bottom))" }}
             title="แชทใหม่"
             onClick={() => setUi({ searchOpen: true, searchInitial: "" })}
           >
             <PlusBubbleIcon size={24} />
           </button>
         )}
-        <div style={{ height: "var(--tabbar-h, 0px)" }} />
+        <div style={{ height: "env(safe-area-inset-bottom)" }} />
       </div>
       <UpdateBar />
       <StatusBar />
@@ -641,7 +642,7 @@ function StatusBar() {
   return (
     <div
       className="flex h-[26px] items-center gap-2 border-t border-separator bg-rail px-3 text-[11px] text-secondary"
-      style={{ marginBottom: "var(--tabbar-h, 0px)" }}
+      style={{ marginBottom: "env(safe-area-inset-bottom)" }}
     >
       {syncing && <Spinner size={10} />}
       <span className="truncate">{line}</span>

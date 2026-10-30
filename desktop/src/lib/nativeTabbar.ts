@@ -64,21 +64,26 @@ export interface Hinge {
 }
 
 interface Layout {
-  height: number;
   edge?: "leading" | "trailing";
   /** The hinge, in CSS pixels of the page, while the device is partly open. */
   fold?: Fold;
+  /** The top inset where nothing covers the page; less than the safe area on
+   *  the iPhone Duo's inner screen, whose status bar and camera share one
+   *  top corner, which `occlusions` gives. */
+  topClear?: number;
+  occlusions?: Fold[];
 }
 
-/** Show iOS's own bars with this state. Where the system has a vertical bar
- *  the plugin puts `side` in it and `ui.sideBar` names its edge; elsewhere it
- *  shows a tab bar at the bottom, whose height goes in `--tabbar-h` so pages
- *  can leave room for it while their content scrolls under the glass. */
+/** Show iOS's own bars with this state: a tab bar, and where the system
+ *  has a vertical bar (iPhone Duo) the `side` buttons and `menu` in it, with
+ *  `ui.sideBar` naming its edge. The tab bar is in the page's bottom safe
+ *  area, so pages pad with `env(safe-area-inset-bottom)`; headers start at
+ *  `--safe-top-clear` (see index.css). */
 export function useNativeTabbar(
   state: NativeTabState | null,
   handlers: { onSelect: (id: string) => void; onAction: (id: string) => void },
 ) {
-  const [layout, setLayout] = useState<Layout>({ height: 0 });
+  const [layout, setLayout] = useState<Layout>({});
   const on = useRef(handlers);
   on.current = handlers;
   const key = JSON.stringify(state);
@@ -90,7 +95,12 @@ export function useNativeTabbar(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   useEffect(() => {
-    document.documentElement.style.setProperty("--tabbar-h", `${layout.height}px`);
+    const root = document.documentElement.style;
+    if (layout.topClear == null) root.removeProperty("--top-clear");
+    else root.setProperty("--top-clear", `${layout.topClear}px`);
+    const left = Math.min(...(layout.occlusions ?? []).map((o) => o.x));
+    if (Number.isFinite(left)) root.setProperty("--occlusion-left", `${left}px`);
+    else root.removeProperty("--occlusion-left");
     setUi({ sideBar: layout.edge ?? null, fold: layout.fold ?? null });
   }, [layout]);
   useEffect(() => {
