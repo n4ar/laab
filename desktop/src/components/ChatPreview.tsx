@@ -59,6 +59,7 @@ export function hoverPreview(chatId: string) {
  *  unread count stays. */
 export function ChatPreview({ anchor }: { anchor: RefObject<HTMLElement | null> }) {
   const chatId = useUi((s) => s.preview);
+  const wide = useWide();
   const open = chatId != null;
   const [box, setBox] = useState<DOMRect | null>(null);
   useLayoutEffect(() => {
@@ -92,6 +93,8 @@ export function ChatPreview({ anchor }: { anchor: RefObject<HTMLElement | null> 
   }, [open]);
 
   if (!chatId) return null;
+  // Two panes on a phone: PreviewPane shows it where the chat would open.
+  if (phone && wide) return null;
   if (phone)
     return (
       <Sheet open onClose={() => setUi({ preview: null })} className="h-[78vh] w-[calc(100vw-24px)] bg-chat!">
@@ -152,6 +155,17 @@ export function MenuCard() {
       <PreviewMessages chatId={chatId} />
     </div>,
     document.body,
+  );
+}
+
+/** The previewed chat in the chat pane of a phone's two panes (the iPhone
+ *  Duo opened), the size and place of the chat it stands in for. */
+export function PreviewPane({ chatId }: { chatId: string }) {
+  return (
+    <div className="flex h-full flex-col bg-chat pb-[env(safe-area-inset-bottom)]">
+      <div className="safe-top shrink-0" />
+      <PreviewBody chatId={chatId} />
+    </div>
   );
 }
 

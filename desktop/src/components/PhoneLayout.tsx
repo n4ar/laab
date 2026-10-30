@@ -13,7 +13,7 @@ import { LAST_CHAT_KEY, notice, pushDismiss, setUi, ui, useUi } from "../lib/ui"
 import { Avatar } from "./Avatar";
 import { ChatListColumn } from "./ChatList";
 import { useChatMenu, useNativeChatMenu } from "./ChatActions";
-import { MenuCard, PeekHint, PeekView } from "./ChatPreview";
+import { MenuCard, PeekHint, PeekView, PreviewPane } from "./ChatPreview";
 import { ChatView } from "./ChatView";
 import { ConfirmDialog, Sheets } from "./Dialogs";
 import { FileViewer } from "./FileViewer";
@@ -93,6 +93,7 @@ export function PhoneLayout({ chatId }: { chatId: string | null }) {
   );
 
   const searchDock = useUi((s) => !!s.searchDock);
+  const preview = useUi((s) => s.preview);
   // Half-open like a book, the list ends at the fold and the chat starts
   // after it, so neither runs into the crease.
   const fold = useUi((s) => s.fold);
@@ -117,7 +118,9 @@ export function PhoneLayout({ chatId }: { chatId: string | null }) {
           {searchDock ? <SearchDock /> : <Home selected={chatId} />}
         </div>
         <main className="min-w-0 flex-1" style={book ? { paddingLeft: book.width } : undefined}>
-          {chatId ? (
+          {preview ? (
+            <PreviewPane key={preview} chatId={preview} />
+          ) : chatId ? (
             <ChatView key={chatId} chatId={chatId} main />
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-secondary">
@@ -227,7 +230,8 @@ function useSystemTabBar({ chatId, signedOut, wide }: { chatId: string | null; s
         s.liffConsent ||
         s.sharePicker ||
         s.inspectMessageId ||
-        s.preview
+        // Two panes show it in the chat pane, not over the bars.
+        (s.preview && !wide)
       ),
   );
   const pushed = !wide && !!chatId;
