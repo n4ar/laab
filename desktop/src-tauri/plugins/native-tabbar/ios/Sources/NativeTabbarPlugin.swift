@@ -53,8 +53,8 @@ struct UpdateArgs: Decodable {
 /// in that column. The system only moves the items of its own navigation and
 /// tab bar controllers there, and the webview is in neither, so this draws
 /// the column itself with Liquid Glass. Elsewhere it shows a `UITabBar` at the
-/// bottom. The frontend hears `select` for tabs, `action` for column buttons
-/// and `layout` when the mode changes.
+/// bottom. The frontend hears `select` for tabs, `action` for column buttons,
+/// `layout` when the mode changes and `hinge` as a foldable opens or closes.
 class NativeTabbarPlugin: Plugin, UITabBarDelegate {
   private var bar: UITabBar?
   private var column: SideColumnView?
@@ -152,6 +152,24 @@ class NativeTabbarPlugin: Plugin, UITabBarDelegate {
         self.reportedFold = fold
         self.trigger("layout", data: info)
       }
+    }
+    if #available(iOS 27.1, *) {
+      // The hinge's status and angle in degrees, which reveal a chat peeked
+      // at from the cover screen. Devices without a hinge never call this.
+      column.addInteraction(
+        UIHingeInteraction { [weak self] _, update in
+          guard let hinge = update.hinge else { return }
+          let status: String =
+            switch hinge.status {
+            case .closed: "closed"
+            case .partiallyOpen: "partial"
+            case .fullyOpen: "open"
+            default: "unknown"
+            }
+          let angle = Double(hinge.angle * 180 / .pi)
+          log.debug("hinge \(status, privacy: .public) \(angle, privacy: .public)")
+          self?.trigger("hinge", data: ["status": status, "angle": angle])
+        })
     }
     root.addSubview(column)
     self.column = column

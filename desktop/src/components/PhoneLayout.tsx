@@ -6,10 +6,12 @@ import { api, errorText, useChatList, useLoginPage, useSession } from "../lib/ap
 import { isGroup, unreadTotal } from "../lib/chatList";
 import { closeChat, openChat } from "../lib/nav";
 import { type SideButton, useNativeTabbar } from "../lib/nativeTabbar";
+import { peekOpen } from "../lib/peek";
 import { ios, useWide } from "../lib/platform";
 import { LAST_CHAT_KEY, notice, pushDismiss, setUi, ui, useUi } from "../lib/ui";
 import { Avatar } from "./Avatar";
 import { ChatListColumn } from "./ChatList";
+import { PeekHint, PeekView } from "./ChatPreview";
 import { ChatView } from "./ChatView";
 import { ConfirmDialog, Sheets } from "./Dialogs";
 import { FileViewer } from "./FileViewer";
@@ -43,6 +45,8 @@ export function PhoneLayout({ chatId }: { chatId: string | null }) {
   useEffect(() => {
     if (restored.current || !list || chatId || !wide) return;
     restored.current = true;
+    // Unfolded to peek at a chat: open nothing, so nothing is marked read.
+    if (ui.state.peek) return;
     const last = localStorage.getItem(LAST_CHAT_KEY) ?? (session?.state === "demo" ? "c_team" : null);
     if (last && list.chats.some((c) => c.id === last)) openChat(last, { focusComposer: false });
   }, [list, chatId, wide, session?.state]);
@@ -71,6 +75,8 @@ export function PhoneLayout({ chatId }: { chatId: string | null }) {
   const overlays = (
     <>
       <SearchPalette />
+      <PeekView />
+      <PeekHint />
       <ConfirmDialog />
       <Sheets />
       <FolderDialog />
@@ -208,6 +214,7 @@ function useSystemTabBar(
   const list = useChatList();
   const unread = unreadTotal(list);
   const chat = list?.chats.find((c) => c.id === chatId);
+  const peeking = useUi((s) => !!s.peek && peekOpen(s.hinge, wide));
   const covered = useUi(
     (s) =>
       !!(
@@ -220,7 +227,8 @@ function useSystemTabBar(
         s.folderDialog ||
         s.liffConsent ||
         s.sharePicker ||
-        s.inspectMessageId
+        s.inspectMessageId ||
+        s.preview
       ),
   );
   const [width, setWidth] = useState(0);
@@ -263,7 +271,7 @@ function useSystemTabBar(
       ? {
           tabs,
           selected: page,
-          hidden: signedOut || covered,
+          hidden: signedOut || covered || peeking,
           // The bottom bar leaves for a pushed chat; the vertical bar stays
           // and shows the chat's buttons instead.
           bottomHidden: pushed,

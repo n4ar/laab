@@ -2,13 +2,14 @@ import { router } from "../router";
 import { errorText } from "./api";
 import { unfoldChat } from "./fold";
 import { phone } from "./platform";
-import { LAST_CHAT_KEY, notice, setUi } from "./ui";
+import { LAST_CHAT_KEY, notice, setUi, ui } from "./ui";
 
 /** Open a chat in the main window, optionally scrolled to a message. Unfolds
  *  the conversation pane if it was folded. */
 export function openChat(chatId: string, opts: { messageId?: string | null; focusComposer?: boolean } = {}) {
   setUi({ focusMessageId: opts.messageId ?? null, searchOpen: false, preview: null });
   unfoldChat().catch((e) => notice(errorText(e)));
+  if (ui.state.peek === chatId) setUi({ peek: null });
   localStorage.setItem(LAST_CHAT_KEY, chatId);
   router.navigate({ to: "/chat/$chatId", params: { chatId } });
   // On a phone, focusing the composer would pop the keyboard over the chat.

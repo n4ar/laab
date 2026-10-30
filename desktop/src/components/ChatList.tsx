@@ -515,6 +515,7 @@ export function ChatRow({
   const intoFolder = useChatDrag((d) => !!folder && d?.target?.kind === "folder" && d.target.id === folder);
   const drag = draggable && !phone;
   const previewing = useUi((s) => s.preview === chat.id);
+  const peeked = useUi((s) => s.peek === chat.id);
   const chip = !phone && !selected && (hover || previewing);
   return (
     <Ctx menu={<ChatActions chat={chat} />} className="block">
@@ -558,6 +559,7 @@ export function ChatRow({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
+            {peeked && <EyeIcon size={phone ? 15 : 12} className="shrink-0 text-line-green" />}
             <span className={`truncate text-primary ${phone ? "text-[16px] font-medium" : "text-[13.5px]"}`}>
               {keep ? "Keep Memo" : <Highlight text={chat.name} query={query} />}
             </span>

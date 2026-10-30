@@ -6,9 +6,9 @@ import { closeChat } from "../lib/nav";
 import { phone } from "../lib/platform";
 import { clock, dayHeader } from "../lib/time";
 import type { Chat } from "../lib/types";
-import { notice, setUi } from "../lib/ui";
+import { notice, setUi, useUi } from "../lib/ui";
 import { itemClass, popupClass, Separator } from "./kit";
-import { showPreview } from "./ChatPreview";
+import { onCoverScreen, pickPeek, showPreview } from "./ChatPreview";
 import { LockIcon } from "./Icons";
 
 const run = (p: Promise<unknown>, done?: string) => p.then(() => done && notice(done)).catch((e) => notice(errorText(e)));
@@ -73,9 +73,14 @@ function confirmDelete(chat: Chat) {
 export function ChatActions({ chat }: { chat: Chat }) {
   const list = useChatList();
   const pinned = list?.pins.main?.includes(chat.id) ?? false;
+  const peeked = useUi((s) => s.peek === chat.id);
   return (
     <>
-      <Item onClick={() => showPreview(chat.id)}>ดูโดยไม่อ่าน</Item>
+      {peeked ? (
+        <Item onClick={() => pickPeek(null)}>เลิกแอบดู</Item>
+      ) : (
+        <Item onClick={() => (onCoverScreen() ? pickPeek(chat.id) : showPreview(chat.id))}>ดูโดยไม่อ่าน</Item>
+      )}
       {!phone && <Item onClick={() => run(api.openChatWindow(chat.id, chat.name))}>เปิดในหน้าต่างใหม่</Item>}
       <Separator />
       <Item onClick={() => run(api.setPinned(chat.id, "main", !pinned))}>{pinned ? "เลิกปักหมุด" : "ปักหมุด"}</Item>

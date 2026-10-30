@@ -28,7 +28,7 @@ if $device; then
   echo "Built $root/dist/Laab.ipa ($version)"
 else
   pnpm tauri ios build --target aarch64-sim --debug --config "{\"version\":\"$version\"}"
-  app=$(find src-tauri/gen/apple/build -path '*iphonesimulator*' -name 'Laab.app' -type d | head -1)
+  app=$(find src-tauri/gen/apple/build \( -path '*iphonesimulator*' -o -path '*-sim/*' \) -iname 'Laab.app' -type d | head -1)
   [[ -n $app ]] || { echo "No simulator app was built" >&2; exit 1; }
   rm -rf "$root/dist/Laab-ios-simulator.app"
   cp -R "$app" "$root/dist/Laab-ios-simulator.app"

@@ -1,5 +1,5 @@
 import { createStore, useStore } from "@tanstack/react-store";
-import type { Fold } from "./nativeTabbar";
+import type { Fold, Hinge } from "./nativeTabbar";
 import type { Message, SearchKind, Workspace } from "./types";
 import type { ViewerPayload } from "./viewer";
 
@@ -82,6 +82,11 @@ export interface UiState {
   chatMenuOpen: boolean;
   /** The chat shown beside the list without telling LINE it was read. */
   preview: string | null;
+  /** The chat picked on the iPhone Duo's cover screen, shown once the device
+   *  is opened a little and opened for real (read) when it is opened flat. */
+  peek: string | null;
+  /** A foldable's hinge, from iOS; null elsewhere. */
+  hinge: Hinge | null;
   /** When this app last sent a message; that message scrolls the chat down. */
   sentAt: number;
   /** The announcement list over the chat is open. */
@@ -127,6 +132,8 @@ export const ui = createStore<UiState>({
   chatSearch: 0,
   chatMenuOpen: false,
   preview: null,
+  peek: null,
+  hinge: null,
   profile: null,
 });
 
