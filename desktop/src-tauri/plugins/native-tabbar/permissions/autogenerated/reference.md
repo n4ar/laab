@@ -6,6 +6,7 @@ Lets LAAB's own windows show the native tab bar and chat menus and hear taps on 
 
 - `allow-update`
 - `allow-menu`
+- `allow-thaw`
 - `allow-register-listener`
 - `allow-remove-listener`
 
@@ -92,6 +93,32 @@ Enables the remove_listener command without any pre-configured scope.
 <td>
 
 Denies the remove_listener command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-tabbar:allow-thaw`
+
+</td>
+<td>
+
+Enables the thaw command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-tabbar:deny-thaw`
+
+</td>
+<td>
+
+Denies the thaw command without any pre-configured scope.
 
 </td>
 </tr>

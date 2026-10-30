@@ -165,7 +165,12 @@ async function answerChatMenu(token: number, chatId: string) {
   try {
     await invoke("plugin:native-tabbar|menu", { token, menu: shown, card });
   } finally {
+    // The card is drawn under a picture of the page (the plugin's freeze),
+    // which comes off once the card is gone.
     setUi({ menuCard: null });
+    await nextFrame();
+    await nextFrame();
+    await invoke("plugin:native-tabbar|thaw").catch(() => {});
   }
 }
 
