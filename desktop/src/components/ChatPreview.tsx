@@ -262,7 +262,7 @@ export function PeekHint() {
       style={{
         left: "max(12px, env(safe-area-inset-left))",
         right: "max(12px, env(safe-area-inset-right))",
-        bottom: "calc(12px + env(safe-area-inset-bottom) + var(--tabbar-h, 0px))",
+        bottom: "calc(12px + env(safe-area-inset-bottom))",
       }}
     >
       <DuoHint />

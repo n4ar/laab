@@ -183,9 +183,18 @@ body,
    inset, which would leave titles in the screen's rounded corner. */
 :root {
   --safe-top: max(env(safe-area-inset-top), 14px);
+  /* Page headers start where nothing covers them (--top-clear, from the
+     native-tabbar plugin): on the Duo's inner screen that is near the top,
+     as the App Store's title is, and only the camera's corner is avoided. */
+  --safe-top-clear: max(var(--top-clear, env(safe-area-inset-top)), 14px);
+  /* From the right edge, past the camera's corner (--occlusion-left). */
+  --clear-corner: calc(100vw - var(--occlusion-left, 100vw) - env(safe-area-inset-right) + 8px);
 }
 .safe-top {
   padding-top: var(--safe-top);
+}
+.safe-top-clear {
+  padding-top: var(--safe-top-clear);
 }
 .safe-x {
   padding-left: env(safe-area-inset-left);
@@ -196,6 +205,14 @@ body,
 }
 .keyboard .safe-bottom {
   padding-bottom: 0;
+}
+/* Above the system's floating tab bar, which the bottom inset includes, with
+   a gap so the composer does not sit on it. */
+.tabbar-gap {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 10px);
+}
+.keyboard .tabbar-gap {
+  padding-bottom: 6px;
 }
 /* Menus are tapped, not clicked: taller rows, larger text. */
 .phone [role="menuitem"],

@@ -14,7 +14,7 @@ export function PhoneHeader({
   right?: ReactNode;
 }) {
   return (
-    <header className="safe-top shrink-0">
+    <header className="safe-top-clear shrink-0">
       <div className="relative flex h-[52px] items-center px-2">
         {onBack && (
           <button onClick={onBack} className="z-10 flex h-11 min-w-11 items-center gap-0.5 px-1 text-[16px] text-primary">

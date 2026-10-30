@@ -73,8 +73,7 @@ class NativeTabbarPlugin: Plugin {
   private var bars: SystemBars?
   private var watcher: LayoutWatcher?
   private var last: UpdateArgs?
-  private var reportedEdge: String?
-  private var reportedFold: CGRect?
+  private var reported: String?
 
   @objc public func update(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(UpdateArgs.self)
@@ -102,34 +101,34 @@ class NativeTabbarPlugin: Plugin {
   }
 
   /// `edge` is "leading", "trailing" or nil; `fold` is the frame of the
-  /// hinge while the device is partly open. `height` is 0: the system's tab
-  /// bar is in the page's safe area.
+  /// hinge while the device is partly open; `topClear` and `occlusions` say
+  /// where the page may start at the top (see `LayoutWatcher`). The tab
+  /// bar's room is in the page's bottom safe area.
   private func layoutInfo() -> JSObject {
-    var info: JSObject = ["height": 0.0]
-    if let edge = watcher?.edge { info["edge"] = edge }
-    if let fold = watcher?.fold {
-      info["fold"] = [
-        "x": Double(fold.minX), "y": Double(fold.minY), "width": Double(fold.width), "height": Double(fold.height),
-      ] as JSObject
+    var info: JSObject = [:]
+    guard let watcher else { return info }
+    let rect = { (r: CGRect) -> JSObject in
+      ["x": Double(r.minX), "y": Double(r.minY), "width": Double(r.width), "height": Double(r.height)]
     }
+    if let edge = watcher.edge { info["edge"] = edge }
+    if let fold = watcher.fold { info["fold"] = rect(fold) }
+    info["topClear"] = Double(watcher.topClear)
+    info["occlusions"] = watcher.topOcclusions.map(rect) as JSArray
     return info
   }
 
   private func installWatcher(in root: UIView) -> LayoutWatcher {
     let column = LayoutWatcher(frame: root.bounds)
     column.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    // Folding, unfolding and rotating move or remove the vertical bar, and
-    // half-opening the device adds the fold.
-    column.onEdgeChange = { [weak self] in
+    // Folding, unfolding and rotating move or remove the vertical bar, the
+    // fold and the camera's corner.
+    column.onChange = { [weak self] in
       guard let self, let root = self.manager.viewController?.view, let args = self.last else { return }
       self.apply(args, in: root)
-      let info = self.layoutInfo()
-      let edge = info["edge"] as? String
-      let fold = self.watcher?.fold
-      if edge != self.reportedEdge || fold != self.reportedFold {
-        self.reportedEdge = edge
-        self.reportedFold = fold
-        self.trigger("layout", data: info)
+      let key = self.watcher?.key
+      if key != self.reported {
+        self.reported = key
+        self.trigger("layout", data: self.layoutInfo())
       }
     }
     if #available(iOS 27.1, *) {
@@ -152,17 +151,17 @@ class NativeTabbarPlugin: Plugin {
     }
     root.addSubview(column)
     self.watcher = column
-    reportedEdge = column.edge
+    reported = column.key
     return column
   }
 }
 
-/// An invisible view over the page that reports the vertical bar's edge and
-/// the fold, which UIKit gives through a view's traits and reserved regions.
+/// An invisible view over the page that reports what UIKit gives through a
+/// view's traits and reserved regions: the vertical bar's edge, the fold, and
+/// where the top of the screen is clear.
 class LayoutWatcher: UIView {
-  var onEdgeChange: (() -> Void)?
-  private var knownEdge: String?
-  private var knownFold: CGRect?
+  var onChange: (() -> Void)?
+  private var known: String?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -171,10 +170,10 @@ class LayoutWatcher: UIView {
     if #available(iOS 27.1, *) {
       registerForTraitChanges(UITraitCollection.systemTraitsAffectingVerticalBarEdge) {
         (view: LayoutWatcher, _: UITraitCollection) in
-        view.edgeMayHaveChanged()
+        view.setNeedsLayout()
       }
     }
-    knownEdge = edge
+    known = key
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
@@ -200,22 +199,43 @@ class LayoutWatcher: UIView {
     return nil
   }
 
-  private func edgeMayHaveChanged() {
-    setNeedsLayout()
-    if edge != knownEdge {
-      knownEdge = edge
-      onEdgeChange?()
-    }
+  /// The top inset outside the occlusions. Where a status bar spans the top,
+  /// that is the whole safe area. The iPhone Duo's inner screen keeps its
+  /// status bar and camera in one corner, so its 82 pt top inset is needed
+  /// only there: elsewhere the page may start near the top, as the App
+  /// Store's title does, while what sits under the corner moves aside.
+  var topClear: CGFloat {
+    let bar = window?.windowScene?.statusBarManager?.statusBarFrame.height ?? 0
+    return bar >= 10 || topOcclusions.isEmpty ? safeAreaInsets.top : 0
   }
 
-  // UIKit runs this again when the regions read here change, so folding the
-  // device lands here too.
+  /// Occlusions (the camera and the status bar beside it) at the top edge.
+  var topOcclusions: [CGRect] {
+    if #available(iOS 27.1, *) {
+      return reservedRegions(kind: .occlusion).map(\.frame).filter { $0.minY <= 1 && $0.width > 0 }
+    }
+    return []
+  }
+
+  /// Everything this view reports, to tell when it changed.
+  var key: String {
+    "\(edge ?? "")|\(fold.map { NSCoder.string(for: $0) } ?? "")|\(topClear)|"
+      + topOcclusions.map { NSCoder.string(for: $0) }.joined(separator: ",")
+  }
+
+  override func safeAreaInsetsDidChange() {
+    super.safeAreaInsetsDidChange()
+    setNeedsLayout()
+  }
+
+  // UIKit runs this again when the regions read here change, so folding and
+  // rotating the device land here too.
   override func layoutSubviews() {
     super.layoutSubviews()
-    if edge != knownEdge || fold != knownFold {
-      knownEdge = edge
-      knownFold = fold
-      DispatchQueue.main.async { self.onEdgeChange?() }
+    let now = key
+    if now != known {
+      known = now
+      DispatchQueue.main.async { self.onChange?() }
     }
   }
 }

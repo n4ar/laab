@@ -234,9 +234,12 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
       <header
         className={
           phone
-            ? `safe-top relative flex shrink-0 items-center gap-1 border-b border-separator pr-1.5 ${wide ? "pl-4" : "pl-1"} min-h-[calc(52px+var(--safe-top))]`
+            ? `safe-top-clear relative flex shrink-0 items-center gap-1 border-b border-separator ${wide ? "pl-4" : "pl-1"} min-h-[calc(52px+var(--safe-top-clear))]`
             : "drag flex h-[56px] shrink-0 items-center gap-1.5 px-4"
         }
+        // The buttons at the trailing end step left of the camera's corner
+        // instead of the whole header moving down (iPhone Duo).
+        style={phone ? { paddingRight: "max(6px, var(--clear-corner))" } : undefined}
         data-tauri-drag-region={!phone || undefined}
       >
         {phone && !wide && !side && <BackButton />}
