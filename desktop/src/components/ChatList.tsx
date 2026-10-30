@@ -34,6 +34,7 @@ export function ChatListColumn({ selected }: { selected: string | null }) {
   const sort = useUi((s) => s.sort);
   const query = useUi((s) => s.listQuery);
   const sideBar = useUi((s) => s.sideBar);
+  const corner = useUi((s) => s.statusCorner);
   const openFolders = useUi((s) => s.openFolders);
   const chats = useMemo(() => (list ? filterChats(list, filter, sort, query) : []), [list, filter, sort, query]);
   // Folders group their chats in "ทั้งหมด"; a search or another tab lists
@@ -93,9 +94,11 @@ export function ChatListColumn({ selected }: { selected: string | null }) {
   return (
     <div className="flex h-full flex-col bg-list">
       {phone && (
-        // LINE for iPhone: a large "แชท" title over the folder tabs.
-        <div className="safe-top-clear flex shrink-0 items-end px-4 pt-2">
-          <h1 className="text-[24px] font-bold">แชท</h1>
+        // LINE for iPhone: a large "แชท" title over the folder tabs. Beside a
+        // corner status bar the title fills the row level with it, so the
+        // tabs share the next row with the chat's header.
+        <div className={`flex shrink-0 px-4 ${corner ? "h-[var(--safe-top)] items-center pt-2" : "safe-top-clear items-end pt-2"}`}>
+          <h1 className={`font-bold ${corner ? "text-[32px]" : "text-[24px]"}`}>แชท</h1>
         </div>
       )}
       <Tabs />
@@ -254,6 +257,7 @@ function Empty({ filter, query }: { filter: ChatFilter; query: string }) {
 function Tabs() {
   const list = useChatList();
   const filter = useUi((s) => s.filter);
+  const corner = useUi((s) => s.statusCorner);
   const folders = (list?.workspaces ?? []).filter((w) => w.id !== "main");
   const current = filter.startsWith("folder:") ? folders.find((f) => f.id === filter.slice(7)) : undefined;
   const tabs: { id: ChatFilter; label: string }[] = [
@@ -287,19 +291,24 @@ function Tabs() {
       }
     >
       {/* LINE for Mac: tabs in the title-bar row; the search box under them
-          lines up with the chat header. */}
+          lines up with the chat header. Under a corner status bar they are
+          as tall as the chat's header, their underline on its border. */}
       <div
-        className={`flex items-start gap-[18px] overflow-x-auto px-4 [scrollbar-width:none] ${phone ? "h-[42px] pt-[12px]" : "drag h-[60px] pt-[16px]"}`}
+        className={`flex gap-[18px] overflow-x-auto px-4 [scrollbar-width:none] ${
+          corner ? "h-[52px] items-stretch border-b border-separator" : phone ? "h-[42px] items-start pt-[12px]" : "drag h-[60px] items-start pt-[16px]"
+        }`}
         data-tauri-drag-region
       >
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setUi({ filter: t.id })}
-            className={`no-drag relative shrink-0 pb-1 ${phone ? "text-[15px]" : "text-[13.5px]"} ${filter === t.id ? "font-bold text-primary" : "text-secondary"}`}
+            className={`no-drag relative flex shrink-0 items-center ${corner ? "" : "pb-1"} ${phone ? "text-[15px]" : "text-[13.5px]"} ${filter === t.id ? "font-bold text-primary" : "text-secondary"}`}
           >
-            {t.label}
-            {unreadIn(t.id) && <span className="absolute -top-0.5 -right-2 h-[5px] w-[5px] rounded-full bg-line-green" />}
+            <span className="relative">
+              {t.label}
+              {unreadIn(t.id) && <span className="absolute -top-0.5 -right-2 h-[5px] w-[5px] rounded-full bg-line-green" />}
+            </span>
             {filter === t.id && (
               <span className="absolute right-0 bottom-0 left-0 h-0.5 rounded bg-primary" />
             )}
@@ -308,7 +317,7 @@ function Tabs() {
         <button
           title="จัดการโฟลเดอร์แชท"
           onClick={() => setUi({ folderDialog: { chatId: null } })}
-          className="no-drag shrink-0 pt-0.5 text-secondary hover:text-primary"
+          className={`no-drag shrink-0 text-secondary hover:text-primary ${corner ? "self-center" : "pt-0.5"}`}
         >
           <SlidersIcon size={18} />
         </button>
