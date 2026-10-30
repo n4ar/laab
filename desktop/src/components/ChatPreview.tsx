@@ -129,11 +129,11 @@ function PreviewBody({ chatId }: { chatId: string }) {
           </div>
           <div className="flex items-center gap-1 text-[11px] text-secondary">
             <EyeIcon size={11} className="shrink-0" />
-            <span className="truncate">ดูอยู่ · ยังไม่ส่งว่าอ่านแล้ว</span>
+            <span className="truncate">ยังไม่ขึ้นว่าอ่านแล้ว</span>
           </div>
         </div>
         <button
-          title="เปิดแชท แล้วส่งว่าอ่านแล้ว"
+          title="เปิดแชท จะขึ้นว่าอ่านแล้ว"
           onClick={() => openChat(chatId)}
           className="h-7 shrink-0 rounded-md bg-line-green px-3 text-[12px] font-medium text-white"
         >
@@ -235,9 +235,9 @@ export function PeekView() {
           <div className="text-[19px] font-semibold">{title}</div>
           <div className="flex items-center gap-1.5 text-[13px] text-secondary">
             <EyeIcon size={14} />
-            แอบดูอยู่ · ยังไม่ส่งว่าอ่านแล้ว
+            ยังไม่ขึ้นว่าอ่านแล้ว
           </div>
-          <div className="text-[12px] text-secondary">กางสุดเพื่อเปิดแชท และอ่านเลย</div>
+          <div className="text-[12px] text-secondary">ระวัง กางสุดจะขึ้นว่าอ่านแล้ว</div>
         </div>
         <div className="safe-top safe-bottom flex min-w-0 flex-1 flex-col" style={{ marginLeft: gap }}>
           <PreviewMessages chatId={chatId} />
