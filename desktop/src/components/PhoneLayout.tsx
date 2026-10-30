@@ -6,14 +6,14 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, errorText, q, useChatList, useLoginPage, useSession } from "../lib/api";
 import { isGroup, unreadTotal } from "../lib/chatList";
 import { closeChat, openChat } from "../lib/nav";
-import { type MenuEntry, type SideButton, useNativeTabbar } from "../lib/nativeTabbar";
+import { findEntry, type MenuEntry, type SideButton, useNativeTabbar } from "../lib/nativeTabbar";
 import { peekOpen } from "../lib/peek";
 import { ios, useWide } from "../lib/platform";
 import { LAST_CHAT_KEY, notice, pushDismiss, setUi, ui, useUi } from "../lib/ui";
 import { Avatar } from "./Avatar";
 import { ChatListColumn } from "./ChatList";
-import { useChatMenu } from "./ChatActions";
-import { PeekHint, PeekView } from "./ChatPreview";
+import { useChatMenu, useNativeChatMenu } from "./ChatActions";
+import { MenuCard, PeekHint, PeekView } from "./ChatPreview";
 import { ChatView } from "./ChatView";
 import { ConfirmDialog, Sheets } from "./Dialogs";
 import { FileViewer } from "./FileViewer";
@@ -39,6 +39,7 @@ export function PhoneLayout({ chatId }: { chatId: string | null }) {
   const wide = useWide();
   const loginPage = useLoginPage();
   useSystemTabBar({ chatId, signedOut: loginPage, wide });
+  useNativeChatMenu();
 
   // Unfolded, reopen the last chat as the desktop does; the cover screen
   // starts on the chat list, as LINE does.
@@ -78,6 +79,7 @@ export function PhoneLayout({ chatId }: { chatId: string | null }) {
       <SearchPalette />
       <PeekView />
       <PeekHint />
+      <MenuCard />
       <ConfirmDialog />
       <Sheets />
       <FolderDialog />
@@ -291,13 +293,6 @@ function useSystemTabBar({ chatId, signedOut, wide }: { chatId: string | null; s
     },
   );
 }
-
-const findEntry = (sections: MenuEntry[][], id: string): MenuEntry | undefined => {
-  for (const e of sections.flat()) {
-    const hit = e.id === id ? e : e.children && findEntry(e.children, id);
-    if (hit) return hit;
-  }
-};
 
 /** Photos and videos over the page, as the desktop's viewer window. */
 function Gallery() {

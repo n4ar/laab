@@ -88,6 +88,9 @@ export interface UiState {
   chatSearch: number;
   /** The chat's ⋮ menu, opened from the vertical bar. */
   chatMenuOpen: boolean;
+  /** The chat's card drawn for a moment for the long-press menu to show
+   *  (see `answerChatMenu`). */
+  menuCard: string | null;
   /** The chat shown beside the list without telling LINE it was read. */
   preview: string | null;
   /** The chat picked on the iPhone Duo's cover screen, shown once the device
@@ -140,6 +143,7 @@ export const ui = createStore<UiState>({
   statusCorner: false,
   chatSearch: 0,
   chatMenuOpen: false,
+  menuCard: null,
   preview: null,
   peek: null,
   hinge: null,

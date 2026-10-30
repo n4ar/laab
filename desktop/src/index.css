@@ -173,6 +173,11 @@ body,
   -webkit-tap-highlight-color: transparent;
   font-size: 15px;
 }
+/* A chat row is a link, so a long press gets the system's context menu. */
+.phone .chat-link {
+  -webkit-touch-callout: default;
+  -webkit-user-drag: none;
+}
 .phone body {
   overscroll-behavior: none;
 }

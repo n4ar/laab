@@ -64,6 +64,41 @@ struct MenuItemArgs: Codable {
   let children: [[MenuItemArgs]]?
 }
 
+extension MenuItemArgs {
+  /// A UIKit menu, its sections inline; choosing an item calls `run` with its id.
+  static func elements(_ sections: [[MenuItemArgs]], run: @escaping (String) -> Void) -> [UIMenuElement] {
+    sections.map { UIMenu(title: "", options: .displayInline, children: $0.map { $0.element(run) }) }
+  }
+
+  func element(_ run: @escaping (String) -> Void) -> UIMenuElement {
+    let image = icon.flatMap { UIImage(systemName: $0) }
+    if let children {
+      return UIMenu(title: title, image: image, children: Self.elements(children, run: run))
+    }
+    var attributes: UIMenuElement.Attributes = []
+    if destructive == true { attributes.insert(.destructive) }
+    if disabled == true { attributes.insert(.disabled) }
+    let id = id
+    return UIAction(title: title, image: image, attributes: attributes, state: checked == true ? .on : .off) { _ in run(id) }
+  }
+}
+
+struct RectArgs: Decodable {
+  let x: Double
+  let y: Double
+  let width: Double
+  let height: Double
+}
+
+/// The page's answer to `chatMenu`: the chat's menu, and where it drew the
+/// chat's preview card for the system to show over the menu (left out on
+/// the iPhone Duo's cover screen, which shows the menu alone).
+struct MenuArgs: Decodable {
+  let token: Int
+  let menu: [[MenuItemArgs]]
+  let card: RectArgs?
+}
+
 /// LAAB's bars, drawn by iOS (see `SystemBars`): a tab bar, and the chat's
 /// buttons and menu as bar items, which iOS puts in the vertical bar where
 /// there is one (iOS 27.1, the iPhone Duo). The frontend hears `select` for
@@ -74,6 +109,26 @@ class NativeTabbarPlugin: Plugin {
   private var watcher: LayoutWatcher?
   private var last: UpdateArgs?
   private var reported: String?
+  private var menus: ChatMenus?
+
+  /// Long-pressing a chat row (a link to `#chat=<id>`) shows the system's
+  /// context menu: the page hears `chatMenu` and answers with `menu`, then
+  /// hears `menuAction` for a chosen item and `menuCommit` for a tap on the
+  /// preview.
+  override func load(webview: WKWebView) {
+    let menus = ChatMenus(webview: webview)
+    menus.onRequest = { [weak self] token, chat in self?.trigger("chatMenu", data: ["token": token, "chatId": chat]) }
+    menus.onAction = { [weak self] id in self?.trigger("menuAction", data: ["id": id]) }
+    menus.onCommit = { [weak self] chat in self?.trigger("menuCommit", data: ["chatId": chat]) }
+    self.menus = menus
+  }
+
+  @objc public func menu(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(MenuArgs.self)
+    DispatchQueue.main.async {
+      self.menus?.answer(args) { invoke.resolve() }
+    }
+  }
 
   @objc public func update(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(UpdateArgs.self)
@@ -353,21 +408,7 @@ final class SystemBars: NSObject, UITabBarControllerDelegate {
   }
 
   private func menuElements(_ sections: [[MenuItemArgs]]) -> [UIMenuElement] {
-    sections.map { UIMenu(title: "", options: .displayInline, children: $0.map(menuElement)) }
-  }
-
-  private func menuElement(_ m: MenuItemArgs) -> UIMenuElement {
-    let image = m.icon.flatMap { UIImage(systemName: $0) }
-    if let children = m.children {
-      return UIMenu(title: m.title, image: image, children: menuElements(children))
-    }
-    var attributes: UIMenuElement.Attributes = []
-    if m.destructive == true { attributes.insert(.destructive) }
-    if m.disabled == true { attributes.insert(.disabled) }
-    let id = m.id
-    return UIAction(
-      title: m.title, image: image, attributes: attributes, state: m.checked == true ? .on : .off
-    ) { [weak self] _ in self?.onAction?("menu:\(id)") }
+    MenuItemArgs.elements(sections) { [weak self] id in self?.onAction?("menu:\(id)") }
   }
 
   private static let titles = [
@@ -383,6 +424,120 @@ final class SystemBars: NSObject, UITabBarControllerDelegate {
         if #available(iOS 26.0, *), let badge = b.badge { item.badge = .string(badge) }
         return item
       }, representativeItem: nil)
+  }
+}
+
+/// Stands in front of wry's UI delegate, which it forwards everything else
+/// to, to give chat rows a system context menu. WebKit asks for a link's
+/// menu and waits for the answer, so the page can build it: iOS has no API
+/// to open a context menu from code.
+final class ChatMenus: NSObject, WKUIDelegate {
+  var onRequest: ((Int, String) -> Void)?
+  var onAction: ((String) -> Void)?
+  var onCommit: ((String) -> Void)?
+  private weak var webview: WKWebView?
+  private let original: WKUIDelegate?
+  private var token = 0
+  private var pending: (token: Int, done: (UIContextMenuConfiguration?) -> Void)?
+
+  init(webview: WKWebView) {
+    self.webview = webview
+    original = webview.uiDelegate
+    super.init()
+    webview.allowsLinkPreview = true
+    webview.uiDelegate = self
+  }
+
+  override func responds(to aSelector: Selector!) -> Bool {
+    super.responds(to: aSelector) || (original?.responds(to: aSelector) ?? false)
+  }
+
+  override func forwardingTarget(for aSelector: Selector!) -> Any? {
+    original?.responds(to: aSelector) == true ? original : super.forwardingTarget(for: aSelector)
+  }
+
+  private static func chat(_ url: URL?) -> String? {
+    guard let fragment = url?.fragment, fragment.hasPrefix("chat=") else { return nil }
+    return String(fragment.dropFirst(5))
+  }
+
+  func webView(
+    _ webView: WKWebView, contextMenuConfigurationForElement elementInfo: WKContextMenuElementInfo,
+    completionHandler: @escaping (UIContextMenuConfiguration?) -> Void
+  ) {
+    guard let chat = Self.chat(elementInfo.linkURL) else {
+      // Only chat rows allow the callout (see index.css).
+      completionHandler(nil)
+      return
+    }
+    pending?.done(nil)
+    token += 1
+    let token = token
+    pending = (token, completionHandler)
+    onRequest?(token, chat)
+    // A page that never answers must not hold the press forever.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+      guard let self, self.pending?.token == token else { return }
+      self.pending = nil
+      completionHandler(nil)
+    }
+  }
+
+  func answer(_ args: MenuArgs, then: @escaping () -> Void) {
+    guard let pending, pending.token == args.token else {
+      then()
+      return
+    }
+    self.pending = nil
+    let run = onAction
+    let menu = UIMenu(children: MenuItemArgs.elements(args.menu) { id in run?(id) })
+    let show = { (card: UIImage?) in
+      pending.done(
+        UIContextMenuConfiguration(
+          identifier: nil,
+          previewProvider: card.map { image in { CardPreview(image: image) } },
+          actionProvider: { _ in menu }))
+      then()
+    }
+    guard let card = args.card, let webview else {
+      show(nil)
+      return
+    }
+    let config = WKSnapshotConfiguration()
+    config.rect = CGRect(x: card.x, y: card.y, width: card.width, height: card.height)
+    config.afterScreenUpdates = true
+    webview.takeSnapshot(with: config) { image, error in
+      if let error { log.error("card snapshot: \(error.localizedDescription, privacy: .public)") }
+      show(image)
+    }
+  }
+
+  func webView(
+    _ webView: WKWebView, contextMenuForElement elementInfo: WKContextMenuElementInfo,
+    willCommitWithAnimator animator: UIContextMenuInteractionCommitAnimating
+  ) {
+    guard let chat = Self.chat(elementInfo.linkURL) else { return }
+    animator.preferredCommitStyle = .dismiss
+    animator.addCompletion { [weak self] in self?.onCommit?(chat) }
+  }
+}
+
+/// The chat's card, as the page drew it, over the menu.
+final class CardPreview: UIViewController {
+  private let image: UIImage
+
+  init(image: UIImage) {
+    self.image = image
+    super.init(nibName: nil, bundle: nil)
+    preferredContentSize = image.size
+  }
+
+  required init?(coder: NSCoder) { nil }
+
+  override func loadView() {
+    let view = UIImageView(image: image)
+    view.contentMode = .scaleAspectFill
+    self.view = view
   }
 }
 

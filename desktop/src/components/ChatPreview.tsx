@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { api, errorText, q, useChatList, usePeople, useSession } from "../lib/api";
 import { isGroup, isKeepMemo } from "../lib/chatList";
@@ -112,26 +112,52 @@ export function ChatPreview({ anchor }: { anchor: RefObject<HTMLElement | null> 
   );
 }
 
-function PreviewBody({ chatId }: { chatId: string }) {
+/** The chat's picture and name, and that it is not marked read. */
+function PreviewHeader({ chatId, children }: { chatId: string; children?: ReactNode }) {
   const list = useChatList();
   const chat = list?.chats.find((c) => c.id === chatId);
   const me = useSession()?.profile?.mid ?? "";
   const group = isGroup({ id: chatId, kind: chat?.kind ?? "" });
   const title = isKeepMemo({ id: chatId }, me) ? "Keep Memo" : (chat?.name ?? chatId);
   return (
-    <>
-      <div className="flex h-[52px] shrink-0 items-center gap-2.5 border-b border-separator pr-2 pl-3">
-        <Avatar id={chatId} name={title} size={30} picture={chat?.picture} local={chat?.avatar} />
-        <div className="min-w-0 flex-1 leading-tight">
-          <div className="truncate text-[13.5px] font-semibold">
-            {title}
-            {group && chat?.memberCount ? ` (${chat.memberCount})` : ""}
-          </div>
-          <div className="flex items-center gap-1 text-[11px] text-secondary">
-            <EyeIcon size={11} className="shrink-0" />
-            <span className="truncate">ยังไม่ขึ้นว่าอ่านแล้ว</span>
-          </div>
+    <div className="flex h-[52px] shrink-0 items-center gap-2.5 border-b border-separator pr-2 pl-3">
+      <Avatar id={chatId} name={title} size={30} picture={chat?.picture} local={chat?.avatar} />
+      <div className="min-w-0 flex-1 leading-tight">
+        <div className="truncate text-[13.5px] font-semibold">
+          {title}
+          {group && chat?.memberCount ? ` (${chat.memberCount})` : ""}
         </div>
+        <div className="flex items-center gap-1 text-[11px] text-secondary">
+          <EyeIcon size={11} className="shrink-0" />
+          <span className="truncate">ยังไม่ขึ้นว่าอ่านแล้ว</span>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** The chat over the long-press menu on a phone, drawn only while iOS takes
+ *  a picture of it (see answerChatMenu). iOS rounds its corners. */
+export function MenuCard() {
+  const chatId = useUi((s) => s.menuCard);
+  if (!chatId) return null;
+  return createPortal(
+    <div
+      id="menu-card"
+      className="fixed top-[calc(var(--safe-top)+8px)] left-1/2 z-[200] flex h-[min(44vh,420px)] w-[min(calc(100vw-24px),420px)] -translate-x-1/2 flex-col overflow-hidden bg-chat text-primary"
+    >
+      <PreviewHeader chatId={chatId} />
+      <PreviewMessages chatId={chatId} />
+    </div>,
+    document.body,
+  );
+}
+
+function PreviewBody({ chatId }: { chatId: string }) {
+  return (
+    <>
+      <PreviewHeader chatId={chatId}>
         <button
           title="เปิดแชท จะขึ้นว่าอ่านแล้ว"
           onClick={() => openChat(chatId)}
@@ -144,7 +170,7 @@ function PreviewBody({ chatId }: { chatId: string }) {
             <CloseIcon size={18} />
           </button>
         )}
-      </div>
+      </PreviewHeader>
       <PreviewMessages chatId={chatId} />
     </>
   );
@@ -230,7 +256,10 @@ export function PeekView() {
         className="flex h-full transition-[opacity,filter] duration-150 ease-out"
         style={{ opacity: 0.08 + 0.92 * clarity, filter: clarity < 0.98 ? `blur(${Math.round((1 - clarity) * 16)}px)` : undefined }}
       >
-        <div className="safe-top safe-bottom flex shrink-0 flex-col items-center justify-center gap-3 px-6 text-center" style={{ width: left }}>
+        <div
+          className="safe-top safe-bottom flex shrink-0 flex-col items-center justify-center gap-3 px-6 text-center"
+          style={{ width: left }}
+        >
           <Avatar id={chatId} name={title} size={72} picture={chat?.picture} local={chat?.avatar} />
           <div className="text-[19px] font-semibold">{title}</div>
           <div className="flex items-center gap-1.5 text-[13px] text-secondary">

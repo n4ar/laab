@@ -1,10 +1,11 @@
 ## Default Permission
 
-Lets LAAB's own windows show the native tab bar and hear taps on it.
+Lets LAAB's own windows show the native tab bar and chat menus and hear taps on them.
 
 #### This default permission set includes the following:
 
 - `allow-update`
+- `allow-menu`
 - `allow-register-listener`
 - `allow-remove-listener`
 
@@ -16,6 +17,32 @@ Lets LAAB's own windows show the native tab bar and hear taps on it.
 <th>Description</th>
 </tr>
 
+
+<tr>
+<td>
+
+`native-tabbar:allow-menu`
+
+</td>
+<td>
+
+Enables the menu command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-tabbar:deny-menu`
+
+</td>
+<td>
+
+Denies the menu command without any pre-configured scope.
+
+</td>
+</tr>
 
 <tr>
 <td>
