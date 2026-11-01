@@ -5,6 +5,7 @@ import { api, errorText, useChatList, useSession } from "../lib/api";
 import { clickEndsDrag, isRecent, markRecent, moving, pressChat, useChatDrag } from "../lib/chatDrag";
 import { filterChats, folderName, folderOf, groupRows, isKeepMemo, type ListRow, listPreview } from "../lib/chatList";
 import { openChat } from "../lib/nav";
+import { phone } from "../lib/platform";
 import { listLabel } from "../lib/time";
 import type { Chat, ChatList, Workspace } from "../lib/types";
 import { type ChatFilter, notice, setUi, ui, useUi } from "../lib/ui";
@@ -30,6 +31,7 @@ export function ChatListColumn({ selected }: { selected: string | null }) {
   const filter = useUi((s) => s.filter);
   const sort = useUi((s) => s.sort);
   const query = useUi((s) => s.listQuery);
+  const sideBar = useUi((s) => s.sideBar);
   const openFolders = useUi((s) => s.openFolders);
   const chats = useMemo(() => (list ? filterChats(list, filter, sort, query) : []), [list, filter, sort, query]);
   // Folders group their chats in "ทั้งหมด"; a search or another tab lists
@@ -88,17 +90,29 @@ export function ChatListColumn({ selected }: { selected: string | null }) {
 
   return (
     <div className="flex h-full flex-col bg-list">
+      {phone && (
+        // LINE for iPhone: a large "แชท" title over the folder tabs.
+        <div className="safe-top flex shrink-0 items-end px-4 pt-2">
+          <h1 className="text-[24px] font-bold">แชท</h1>
+        </div>
+      )}
       <Tabs />
       <div className="flex items-center gap-2 px-4 pt-[8px] pb-2">
-        <label className="flex h-[35px] flex-1 items-center gap-2 rounded-[6px] bg-field px-2.5 text-secondary">
+        <label
+          className={`flex flex-1 items-center gap-2 bg-field px-2.5 text-secondary ${phone ? "h-[38px] rounded-[10px]" : "h-[35px] rounded-[6px]"}`}
+        >
           <SearchIcon size={14} />
           <input
             className="selectable min-w-0 flex-1 bg-transparent text-[13px] text-primary outline-none placeholder:text-secondary"
             placeholder="ค้นหาข้อความและห้องแชท"
+            enterKeyHint="search"
             value={query}
             onChange={(e) => setUi({ listQuery: e.target.value })}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.nativeEvent.isComposing) setUi({ searchOpen: true, searchInitial: query });
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                setUi({ searchOpen: true, searchInitial: query });
+                if (phone) e.currentTarget.blur();
+              }
               if (e.key === "Escape") setUi({ listQuery: "" });
             }}
           />
@@ -201,14 +215,19 @@ export function ChatListColumn({ selected }: { selected: string | null }) {
             })}
           </div>
         )}
-        <button
-          className="sticky bottom-4 left-full mr-4 grid h-13 w-13 place-items-center rounded-full bg-line-green text-white shadow-[0_3px_12px_rgba(0,0,0,0.25)] transition-transform duration-150 ease-out active:scale-[0.96]"
-          style={{ marginTop: -52 }}
-          title="แชทใหม่"
-          onClick={() => setUi({ searchOpen: true, searchInitial: "" })}
-        >
-          <PlusBubbleIcon size={24} />
-        </button>
+        {/* With iOS's vertical bar, "new chat" is a button in that column. */}
+        {!sideBar && (
+          <button
+            className="sticky left-full mr-4 grid h-13 w-13 place-items-center rounded-full bg-line-green text-white shadow-[0_3px_12px_rgba(0,0,0,0.25)] transition-transform duration-150 ease-out active:scale-[0.96]"
+            // Over the iOS tab bar, which the list scrolls under (--tabbar-h).
+            style={{ marginTop: -52, bottom: "calc(16px + var(--tabbar-h, 0px))" }}
+            title="แชทใหม่"
+            onClick={() => setUi({ searchOpen: true, searchInitial: "" })}
+          >
+            <PlusBubbleIcon size={24} />
+          </button>
+        )}
+        <div style={{ height: "var(--tabbar-h, 0px)" }} />
       </div>
       <UpdateBar />
       <StatusBar />
@@ -219,9 +238,9 @@ export function ChatListColumn({ selected }: { selected: string | null }) {
 
 function Empty({ filter, query }: { filter: ChatFilter; query: string }) {
   const text = query
-    ? "ไม่พบแชท… กด Return เพื่อค้นหาในข้อความ"
+    ? `ไม่พบแชท… กด ${phone ? "ค้นหา" : "Return"} เพื่อค้นหาในข้อความ`
     : filter.startsWith("folder:")
-      ? "คลิกขวาที่แชทแล้วเลือก “เพิ่มในโฟลเดอร์” เพื่อใส่แชทในโฟลเดอร์นี้"
+      ? `${phone ? "กดค้าง" : "คลิกขวา"}ที่แชทแล้วเลือก “เพิ่มในโฟลเดอร์” เพื่อใส่แชทในโฟลเดอร์นี้`
       : "ไม่มีแชท";
   return <div className="px-8 pt-16 text-center text-[13px] leading-relaxed text-secondary">{text}</div>;
 }
@@ -264,14 +283,14 @@ function Tabs() {
       {/* LINE for Mac: tabs in the title-bar row; the search box under them
           lines up with the chat header. */}
       <div
-        className="drag flex h-[60px] items-start gap-[18px] overflow-x-auto px-4 pt-[16px] [scrollbar-width:none]"
+        className={`flex items-start gap-[18px] overflow-x-auto px-4 [scrollbar-width:none] ${phone ? "h-[42px] pt-[12px]" : "drag h-[60px] pt-[16px]"}`}
         data-tauri-drag-region
       >
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setUi({ filter: t.id })}
-            className={`no-drag relative shrink-0 pb-1 text-[13.5px] ${filter === t.id ? "font-bold text-primary" : "text-secondary"}`}
+            className={`no-drag relative shrink-0 pb-1 ${phone ? "text-[15px]" : "text-[13.5px]"} ${filter === t.id ? "font-bold text-primary" : "text-secondary"}`}
           >
             {t.label}
             {unreadIn(t.id) && <span className="absolute -top-0.5 -right-2 h-[5px] w-[5px] rounded-full bg-line-green" />}
@@ -372,7 +391,7 @@ function FolderRow({ row, list, selected }: { row: Extract<ListRow, { kind: "fol
             <span className="ml-auto shrink-0 text-[11px] text-secondary">{listLabel(latest)}</span>
           </div>
           <div className="mt-0.5 flex items-start gap-2">
-            <span className="line-clamp-2 flex-1 text-[12px] leading-[1.35] text-secondary">
+            <span className={`line-clamp-2 flex-1 leading-[1.35] text-secondary ${phone ? "text-[13.5px]" : "text-[12px]"}`}>
               {folder.name ? chats.map((c) => c.name).join(", ") : `${chats.length} แชท`}
             </span>
             {unread > 0 ? <Badge count={unread} /> : <Badge count={mutedUnread} className="bg-secondary!" />}
@@ -412,7 +431,7 @@ function FolderTitle({ folder, list }: { folder: Workspace; list: ChatList }) {
   }, [editing]);
   const shown = folderName(folder, list);
   if (!editing) {
-    return <span className={`truncate text-[13.5px] ${folder.name ? "text-primary" : "text-secondary"}`}>{shown}</span>;
+    return <span className={`truncate ${phone ? "text-[16px] font-medium" : "text-[13.5px]"} ${folder.name ? "text-primary" : "text-secondary"}`}>{shown}</span>;
   }
   const finish = (name: string | null) => {
     if (done.current) return;
@@ -480,7 +499,7 @@ export function ChatRow({
   /** The open folder this row is listed in. */
   folder?: string | null;
   scroller?: React.RefObject<HTMLDivElement | null>;
-  /** Drag onto another chat to make a folder ("ทั้งหมด" tab). */
+  /** Drag onto another chat to make a folder (desktop, "ทั้งหมด" tab). */
   draggable?: boolean;
 }) {
   const [hover, setHover] = useState(false);
@@ -489,15 +508,16 @@ export function ChatRow({
   const dragged = useChatDrag((d) => d?.chat.id === chat.id);
   const merge = useChatDrag((d) => d?.target?.kind === "merge" && d.target.chatId === chat.id);
   const intoFolder = useChatDrag((d) => !!folder && d?.target?.kind === "folder" && d.target.id === folder);
+  const drag = draggable && !phone;
   return (
     <Ctx menu={<ChatActions chat={chat} />} className="block">
       <div
         data-drop="chat"
         data-id={chat.id}
         data-folder={folder ?? undefined}
-        onMouseEnter={() => setHover(true)}
+        onMouseEnter={() => !phone && setHover(true)}
         onMouseLeave={() => setHover(false)}
-        onPointerDown={draggable ? (e) => pressChat(e, chat, folder, scroller?.current ?? null) : undefined}
+        onPointerDown={drag ? (e) => pressChat(e, chat, folder, scroller?.current ?? null) : undefined}
         onClick={() => !clickEndsDrag() && openChat(chat.id)}
         className={`flex h-[72px] cursor-default items-center gap-3 px-4 transition-opacity duration-150 ease-out active:bg-row-selected ${folder ? "pl-7" : ""} ${dragged ? "opacity-40" : ""} ${
           merge || intoFolder ? "bg-line-green/12" : selected ? "bg-row-selected" : hover ? "bg-row-hover" : folder ? "bg-row-hover/60" : ""
@@ -527,7 +547,9 @@ export function ChatRow({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="truncate text-[13.5px] text-primary">{keep ? "Keep Memo" : <Highlight text={chat.name} query={query} />}</span>
+            <span className={`truncate text-primary ${phone ? "text-[16px] font-medium" : "text-[13.5px]"}`}>
+              {keep ? "Keep Memo" : <Highlight text={chat.name} query={query} />}
+            </span>
             {chat.kind === "group" && chat.memberCount ? (
               <span className="shrink-0 text-[13.5px] text-primary">({chat.memberCount})</span>
             ) : null}
@@ -535,7 +557,7 @@ export function ChatRow({
             <span className="ml-auto shrink-0 text-[11px] text-secondary">{listLabel(chat.lastActivity)}</span>
           </div>
           <div className="mt-0.5 flex items-start gap-2">
-            <span className="line-clamp-2 flex-1 text-[12px] leading-[1.35] text-secondary">
+            <span className={`line-clamp-2 flex-1 leading-[1.35] text-secondary ${phone ? "text-[13.5px]" : "text-[12px]"}`}>
               <Preview text={listPreview(chat.preview)} />
             </span>
             <Badge count={chat.unread} className={chat.muted ? "bg-secondary!" : ""} />
@@ -578,7 +600,10 @@ function StatusBar() {
   const line = text ?? (syncing ? s.status : s && s.status !== "เชื่อม LINE แล้ว" && s.state !== "demo" ? s.status : null);
   if (!line) return null;
   return (
-    <div className="flex h-[26px] items-center gap-2 border-t border-separator bg-rail px-3 text-[11px] text-secondary">
+    <div
+      className="flex h-[26px] items-center gap-2 border-t border-separator bg-rail px-3 text-[11px] text-secondary"
+      style={{ marginBottom: "var(--tabbar-h, 0px)" }}
+    >
       {syncing && <Spinner size={10} />}
       <span className="truncate">{line}</span>
     </div>

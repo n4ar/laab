@@ -107,3 +107,51 @@ body,
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Phone (iPhone Duo first). The app fills the visible part of the screen
+   (see fitPhoneViewport) and pads itself for the notch, the rounded corners
+   and the home indicator. */
+.phone {
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  font-size: 15px;
+}
+.phone body {
+  overscroll-behavior: none;
+}
+.phone #root {
+  height: var(--app-height, 100%);
+}
+/* The iPhone Duo puts its status bar in a side column and reports no top
+   inset, which would leave titles in the screen's rounded corner. */
+:root {
+  --safe-top: max(env(safe-area-inset-top), 14px);
+}
+.safe-top {
+  padding-top: var(--safe-top);
+}
+.safe-x {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.keyboard .safe-bottom {
+  padding-bottom: 0;
+}
+/* Menus are tapped, not clicked: taller rows, larger text. */
+.phone [role="menuitem"],
+.phone [role="menuitemradio"],
+.phone [role="menuitemcheckbox"] {
+  min-height: 44px;
+  font-size: 16px;
+}
+/* iOS zooms into fields with text under 16px. */
+.phone input,
+.phone textarea {
+  font-size: 16px !important;
+}
+.phone ::-webkit-scrollbar {
+  display: none;
+}
