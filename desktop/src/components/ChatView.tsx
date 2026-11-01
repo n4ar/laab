@@ -7,10 +7,11 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, errorText, messageLimit, q, queryClient, setMessageLimit, useChatList, usePeople, useSession } from "../lib/api";
-import { adjacentChat, isGroup, isKeepMemo } from "../lib/chatList";
+import { adjacentChat, isGroup, isKeepMemo, unreadTotal } from "../lib/chatList";
 import { findHits } from "../lib/inChatSearch";
 import { closeChat, openChat } from "../lib/nav";
-import { dismissTop, notice, ui } from "../lib/ui";
+import { phone, useWide } from "../lib/platform";
+import { dismissTop, notice, setUi, ui, useUi } from "../lib/ui";
 import { Announcements } from "./Announcements";
 import { HeaderMenu } from "./ChatActions";
 import { Composer, type ComposerHandle } from "./Composer";
@@ -74,6 +75,13 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
     index: 0,
   });
   const [dragging, setDragging] = useState(false);
+  const wide = useWide();
+  // iOS's vertical bar (the iPhone Duo's cover screen) holds back, search,
+  // notes and ⋮, so the header keeps only the title.
+  const sideBar = useUi((s) => s.sideBar);
+  const side = phone && !!sideBar;
+  const menuOpen = useUi((s) => s.chatMenuOpen);
+  const searchRequest = useUi((s) => s.chatSearch);
   const me = session?.profile?.mid ?? "";
   const signedIn = session?.state === "signed_in";
 
@@ -148,6 +156,15 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
   };
 
   useHotkey("Mod+F", openSearch);
+  // Only a request made while this chat is open counts. An older one would
+  // otherwise open search each time a chat mounts.
+  const handledSearch = useRef(searchRequest);
+  useEffect(() => {
+    if (searchRequest === handledSearch.current) return;
+    handledSearch.current = searchRequest;
+    openSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchRequest]);
   useHotkey("Mod+G", () => search.open && step(1));
   useHotkey("Mod+Shift+G", () => search.open && step(-1));
 
@@ -174,6 +191,7 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
 
   // Files dropped on the chat are sent one by one.
   useEffect(() => {
+    if (phone) return;
     const off = getCurrentWebview().onDragDropEvent((e) => {
       if (e.payload.type === "over" || e.payload.type === "enter") setDragging(true);
       else if (e.payload.type === "leave") setDragging(false);
@@ -198,11 +216,24 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
   return (
     <div className="relative flex h-full flex-col bg-chat">
       {/* LINE for Mac: the header sits under a title-bar strip, level with
-          the chat list's search box. */}
-      <div className="drag h-[56px] shrink-0" data-tauri-drag-region />
-      <header className="drag flex h-[56px] shrink-0 items-center gap-1.5 px-4" data-tauri-drag-region>
-        <h2 className="truncate text-[15px] font-semibold">{isKeepMemo({ id: chatId }, me) ? "Keep Memo" : title}</h2>
-        {group && chat?.memberCount ? <span className="text-[15px] font-semibold">({chat.memberCount})</span> : null}
+          the chat list's search box. A phone puts it under the status bar,
+          with a back button on the cover screen. */}
+      {!phone && <div className="drag h-[56px] shrink-0" data-tauri-drag-region />}
+      <header
+        className={
+          phone
+            ? `safe-top relative flex shrink-0 items-center gap-1 border-b border-separator pr-1.5 ${wide ? "pl-4" : "pl-1"} min-h-[calc(52px+var(--safe-top))]`
+            : "drag flex h-[56px] shrink-0 items-center gap-1.5 px-4"
+        }
+        data-tauri-drag-region={!phone || undefined}
+      >
+        {phone && !wide && !side && <BackButton />}
+        <h2 className={`truncate font-semibold ${phone ? "text-[17px]" : "text-[15px]"}`}>
+          {isKeepMemo({ id: chatId }, me) ? "Keep Memo" : title}
+        </h2>
+        {group && chat?.memberCount ? (
+          <span className={`shrink-0 font-semibold ${phone ? "text-[17px]" : "text-[15px]"}`}>({chat.memberCount})</span>
+        ) : null}
         {chat && (
           <button
             title={chat.muted ? "เปิดแจ้งเตือน" : "ปิดแจ้งเตือน"}
@@ -212,7 +243,7 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
             {chat.muted ? <BellSlashIcon size={13} /> : <SpeakerIcon size={15} />}
           </button>
         )}
-        {main && (
+        {main && !phone && (
           <button
             title="เปิดในหน้าต่างใหม่"
             onClick={() => api.openChatWindow(chatId, title)}
@@ -222,25 +253,36 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
           </button>
         )}
         <div className="flex-1" />
-        <button
-          title="ค้นหาในแชท ⌘F"
-          onClick={openSearch}
-          className="no-drag grid h-8 w-8 place-items-center text-secondary hover:text-primary"
-        >
-          <SearchIcon size={18} />
-        </button>
-        {group && (
+        {!side && (
+          <button
+            title="ค้นหาในแชท ⌘F"
+            onClick={openSearch}
+            className={`no-drag grid place-items-center ${phone ? "h-11 w-10 text-primary" : "h-8 w-8 text-secondary hover:text-primary"}`}
+          >
+            <SearchIcon size={phone ? 21 : 18} />
+          </button>
+        )}
+        {group && !side && (
           <button
             title="โน้ต"
             onClick={() => api.openAuxWindow("albums", chatId, title, "notes").catch((e) => notice(errorText(e)))}
-            className="no-drag grid h-8 w-8 place-items-center text-secondary hover:text-primary"
+            className={`no-drag grid place-items-center ${phone ? "h-11 w-10 text-primary" : "h-8 w-8 text-secondary hover:text-primary"}`}
           >
             <NoteIcon size={19} />
           </button>
         )}
         {chat && (
-          <Menu.Root>
-            <Menu.Trigger aria-label="เมนูแชท" className="no-drag grid h-8 w-6 place-items-center text-secondary hover:text-primary">
+          <Menu.Root open={menuOpen} onOpenChange={(open) => setUi({ chatMenuOpen: open })}>
+            <Menu.Trigger
+              aria-label="เมนูแชท"
+              // With the vertical bar the ⋯ button is in that column; the menu
+              // still opens from here, at the header's trailing edge.
+              className={
+                side
+                  ? "pointer-events-none absolute right-0 bottom-0 h-px w-px opacity-0"
+                  : `no-drag grid place-items-center ${phone ? "h-11 w-10 text-primary" : "h-8 w-6 text-secondary hover:text-primary"}`
+              }
+            >
               <MoreVIcon size={18} />
             </Menu.Trigger>
             <Menu.Portal>
@@ -344,5 +386,18 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+/** Back to the chat list, with the unread count of the other chats, as on
+ *  LINE for iPhone. */
+function BackButton() {
+  const list = useChatList();
+  const unread = unreadTotal(list);
+  return (
+    <button onClick={closeChat} title="กลับ" className="flex h-11 shrink-0 items-center gap-0.5 pr-1 text-[16px] text-primary">
+      <ChevronIcon dir="left" size={24} />
+      {unread > 0 && <span className="text-[15px]">{unread > 999 ? "999+" : unread}</span>}
+    </button>
   );
 }

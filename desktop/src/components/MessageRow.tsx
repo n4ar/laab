@@ -6,7 +6,8 @@ import { memo, useState } from "react";
 import { api, errorText, mediaUrl, q, queryClient } from "../lib/api";
 import { performFlexAction } from "../lib/flexActions";
 import { callBubbleLabel, isBlank, noticeFor, readCall } from "../lib/notices";
-import { nextReaction } from "../lib/reactions";
+import { phone } from "../lib/platform";
+import { nextReaction, REACTIONS } from "../lib/reactions";
 import { clock } from "../lib/time";
 import type { MentionSpan, Message, ReactionName } from "../lib/types";
 import { notice, setUi, ui, useUi } from "../lib/ui";
@@ -91,7 +92,7 @@ function useOpener(m: Message, ctx: RowContext) {
     try {
       const path = await api.download(ctx.chatId, m.id, m.fileName);
       setState("idle");
-      await (reveal ? api.revealPath(path) : api.openPath(path));
+      await (reveal ? api.revealPath(path) : api.openPath(path, { chatId: ctx.chatId, messageId: m.id, name: m.fileName }));
     } catch (e) {
       setState(errorText(e));
     }
@@ -141,7 +142,12 @@ function GridPhoto({ m, ctx, className }: { m: Message; ctx: RowContext; classNa
 
 function FileBubble({ m, ctx }: { m: Message; ctx: RowContext }) {
   const { state, open } = useOpener(m, ctx);
-  const caption = state === "loading" ? "กำลังดาวน์โหลด…" : state !== "idle" ? state : m.filePath ? "คลิกเพื่อเปิด" : "คลิกเพื่อดาวน์โหลด";
+  const caption =
+    state === "loading"
+      ? "กำลังดาวน์โหลด…"
+      : state !== "idle"
+        ? state
+        : `${phone ? "แตะ" : "คลิก"}เพื่อ${m.filePath ? "เปิด" : "ดาวน์โหลด"}`;
   return (
     <div className="flex w-[260px] flex-col gap-2 rounded-2xl bg-incoming p-3" {...pressable(() => open())}>
       <div className="flex items-center gap-3">
@@ -158,7 +164,7 @@ function FileBubble({ m, ctx }: { m: Message; ctx: RowContext }) {
           <div className="h-full w-1/2 animate-pulse bg-line-green" />
         </div>
       )}
-      {m.filePath && (
+      {m.filePath && !phone && (
         <button className="self-start rounded-full bg-chat px-3 py-1 text-[12px]" onClick={(e) => (e.stopPropagation(), open(true))}>
           แสดงใน Finder
         </button>
@@ -210,12 +216,17 @@ function MediaBubble({ m, ctx }: { m: Message; ctx: RowContext }) {
       </div>
       {
         <div className="mt-1 flex gap-1.5 text-[11.5px] text-secondary">
-          <button className={link} onClick={() => run(api.saveAttachment(ctx.chatId, m.id), (p) => `บันทึกไว้ที่ ${p}`)}>
-            บันทึก
-          </button>
-          <span>|</span>
+          {/* A phone has no Downloads folder; it saves through the Files picker. */}
+          {!phone && (
+            <>
+              <button className={link} onClick={() => run(api.saveAttachment(ctx.chatId, m.id), (p) => `บันทึกไว้ที่ ${p}`)}>
+                บันทึก
+              </button>
+              <span>|</span>
+            </>
+          )}
           <button className={link} onClick={saveAs}>
-            บันทึกเป็น…
+            {phone ? "บันทึก" : "บันทึกเป็น…"}
           </button>
           {ctx.chatId !== ctx.me && (
             <>
@@ -443,8 +454,27 @@ function rowMenu(m: Message, dev: boolean, ctx?: RowContext) {
   const live = sent && m.unsent === 0;
   const status = queryClient.getQueryData(q.analytics.queryKey);
   const reportable = !!status && status !== "unavailable";
+  const mine = m.reactions.find((r) => r.userId === ctx.me)?.reaction;
   return (
     <>
+      {phone && live && ctx.signedIn && (
+        // A phone has no hover button, so the long-press menu leads with the
+        // reactions, as LINE for iPhone does.
+        <>
+          <div className="flex justify-between gap-0.5 px-2 pb-1">
+            {REACTIONS.map((r) => (
+              <Menu.Item
+                key={r.name}
+                onClick={() => run(api.react(ctx.chatId, m.id, nextReaction(mine, r.name)))}
+                className={`grid h-11 w-11 place-items-center rounded-full text-[26px] outline-none data-highlighted:bg-menu-hover ${mine === r.name ? "bg-menu-hover" : ""}`}
+              >
+                {r.emoji}
+              </Menu.Item>
+            ))}
+          </div>
+          <Separator />
+        </>
+      )}
       {live && item("ตอบกลับ", () => setUi({ composerMode: { chatId: ctx.chatId, kind: "reply", message: m }, composerFocus: Date.now() }))}
       {item("คัดลอก", () => writeText(copyText), !copyText)}
       {m.mine &&
@@ -590,7 +620,8 @@ export const MessageRow = memo(function MessageRow({
   const [picking, setPicking] = useState(false);
   // Hovering shows the reaction button beside the read mark and time, not
   // in their place: replacing them made "อ่านแล้ว N" impossible to click.
-  const showReact = (hover || picking) && ctx.signedIn;
+  // A phone reacts from the long-press menu instead.
+  const showReact = (hover || picking) && ctx.signedIn && !phone;
   // LINE puts the time (and read mark) beside every message, even several
   // in the same minute; only the avatar and name are shared by a run.
   const meta = (

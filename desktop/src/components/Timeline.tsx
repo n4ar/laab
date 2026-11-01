@@ -72,6 +72,8 @@ export function Timeline({
     if (!inner.current) return;
     const ro = new ResizeObserver(() => pinned.current && !focusId && toBottom());
     ro.observe(inner.current);
+    // The view itself shrinks too: a phone keyboard, or a reply strip.
+    if (scroller.current) ro.observe(scroller.current);
     return () => ro.disconnect();
   }, [focusId]);
   const lastId = messages[messages.length - 1]?.id;
