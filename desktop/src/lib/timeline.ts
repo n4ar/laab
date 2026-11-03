@@ -8,8 +8,6 @@ export interface Row {
   dayStart: boolean;
   /** First message of a group: avatar and name (or the bubble tail). */
   runStart: boolean;
-  /** Last message of a group: time and read mark. */
-  runEnd: boolean;
   notice: boolean;
   /** Photos sent together, shown as one grid; `message` is the first. */
   photos?: Message[];
@@ -31,8 +29,7 @@ const joinsPhotos = (prev: Message, m: Message) =>
   ms(m.createdTime) - ms(prev.createdTime) <= PHOTO_GAP_MS &&
   sameDay(prev.createdTime, m.createdTime);
 
-// LINE for Mac groups messages by sender and minute: one avatar at the
-// start, one time at the end. Photos, videos and calls always stand alone.
+// LINE groups messages by sender and minute under one avatar and name. Photos, videos and calls always stand alone.
 // (Checked against LINE for Mac 2026-10-22.)
 const STANDALONE = new Set(["IMAGE", "VIDEO", "CALL"]);
 const minute = (t: number) => Math.floor((t > 1e11 ? t : t * 1000) / 60_000);
@@ -63,11 +60,9 @@ export function buildRows(messages: Message[], name: (mid: string) => string): R
     const notice = noticeFor(m, name) != null;
     const dayStart = !prev || !sameDay(prev.createdTime, m.createdTime);
     const runStart = !prev || dayStart || prevNotice || notice || !sameGroup(prev, m);
-    if (runStart && rows.length) rows[rows.length - 1].runEnd = true;
-    rows.push({ message: m, dayStart, runStart, runEnd: false, notice });
+    rows.push({ message: m, dayStart, runStart, notice });
     prev = m;
     prevNotice = notice;
   }
-  if (rows.length) rows[rows.length - 1].runEnd = true;
   return rows;
 }

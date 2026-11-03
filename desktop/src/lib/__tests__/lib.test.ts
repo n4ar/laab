@@ -109,11 +109,11 @@ describe("notices", () => {
       ],
       name,
     );
-    expect(rows.map((r) => [r.message.id, r.runStart, r.runEnd])).toEqual([
-      ["a", true, false],
-      ["b", false, true],
-      ["c", true, true],
-      ["d", true, true],
+    expect(rows.map((r) => [r.message.id, r.runStart])).toEqual([
+      ["a", true],
+      ["b", false],
+      ["c", true],
+      ["d", true],
     ]);
     expect(rows[3].photos?.map((m) => m.id)).toEqual(["d", "e"]);
   });

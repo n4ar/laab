@@ -191,7 +191,6 @@ export function Timeline({
                   m={r.message}
                   ctx={ctx}
                   runStart={r.runStart}
-                  runEnd={r.runEnd}
                   photos={r.photos}
                   readers={(() => {
                     const id = (r.photos?.[r.photos.length - 1] ?? r.message).id;
