@@ -53,6 +53,8 @@ export function Timeline({
   }, [messages, reads, ctx.group, ctx.me]);
   const hitSet = useMemo(() => new Set(search?.hits ?? []), [search?.hits]);
   const currentHit = search && search.hits.length ? search.hits[search.index] : null;
+  const focusLoads = useRef(0);
+  const previousTarget = useRef<string | null>(null);
 
   // Stay pinned to the newest message while content grows (images load after
   // layout). The scroll position itself decides: any scroll that leaves the
@@ -146,7 +148,12 @@ export function Timeline({
   const target = currentHit ?? focusId;
   // The target may precede a full page of unsent messages.
   useEffect(() => {
-    if (target && !loading && !failed && !messages.some((m) => m.id === target) && older.state === "idle") {
+    if (target !== previousTarget.current) {
+      previousTarget.current = target;
+      focusLoads.current = 0;
+    }
+    if (target && target === focusId && focusLoads.current < 20 && !loading && !failed && !messages.some((m) => m.id === target) && older.state === "idle") {
+      focusLoads.current += 1;
       loadOlder();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -165,7 +172,10 @@ export function Timeline({
       const timer = setTimeout(() => {
         if (ui.state.focusMessageId === focusId) setUi({ focusMessageId: null });
       }, 1500);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        if (ui.state.focusMessageId === focusId) setUi({ focusMessageId: null });
+      };
     }
   }, [target, focusId, rows.length]);
 

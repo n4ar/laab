@@ -108,7 +108,11 @@ export const Composer = forwardRef<
   }, [focusRequest]);
 
   useEffect(() => {
-    if (!mentionRequest || mentionRequest.chatId !== chatId || !group || disabled) return;
+    if (!mentionRequest || mentionRequest.chatId !== chatId) return;
+    if (!group || disabled) {
+      setUi({ mentionRequest: null });
+      return;
+    }
     const member: ChatMember = { mid: mentionRequest.mid, name: mentionRequest.name };
     const at = area.current?.selectionStart ?? caret;
     const r = insertMention(text, at, member, mentions);
@@ -179,9 +183,13 @@ export const Composer = forwardRef<
       setMentions([]);
       try {
         await api.sendImageBytes(chatId, image.bytes, image.name);
-        if (caption.trim()) await api.sendText(chatId, caption, captionMentions);
         URL.revokeObjectURL(image.preview);
         setPendingImage(null);
+        if (caption.trim()) {
+          if (mode?.kind === "edit") await api.editMessage(chatId, mode.message.id, caption);
+          else await api.sendText(chatId, caption, captionMentions, mode?.kind === "reply" ? mode.message.id : null);
+        }
+        if (mode) setUi({ composerMode: null });
       } catch (e) {
         setText(caption);
         setMentions(mentions);
@@ -226,7 +234,7 @@ export const Composer = forwardRef<
     const data = e.clipboardData;
     const file = Array.from(data.files).find((f) => f.type.startsWith("image/"));
     const hasImage = !!file || Array.from(data.items).some((item) => item.kind === "file" && item.type.startsWith("image/")) || Array.from(data.types).some((type) => type.startsWith("image/"));
-    if (!hasImage && data.types.includes("text/plain")) return;
+    if (!hasImage) return;
     e.preventDefault();
     const stage = async () => {
       const bytes = file ? new Uint8Array(await file.arrayBuffer()) : await readClipboardPng();
@@ -234,7 +242,7 @@ export const Composer = forwardRef<
       const name = file?.name || "paste.png";
       setPendingImage((old) => {
         if (old) URL.revokeObjectURL(old.preview);
-        return { bytes, name, preview: URL.createObjectURL(new Blob([new Uint8Array(bytes).buffer as ArrayBuffer], { type: "image/png" })) };
+        return { bytes, name, preview: URL.createObjectURL(new Blob([new Uint8Array(bytes).buffer as ArrayBuffer], { type: file?.type || "image/png" })) };
       });
     };
     stage().catch((err) => notice(errorText(err)));

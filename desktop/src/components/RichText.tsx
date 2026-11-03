@@ -38,16 +38,16 @@ export function RichText({
   }
   if (at < text.length) pieces.push({ start: at, end: text.length });
 
-  const marks = (start: number, end: number, node: (s: string) => ReactNode): ReactNode[] => {
+  const marks = (start: number, end: number, node: (s: string, offset: number) => ReactNode): ReactNode[] => {
     // Split [start,end) by highlight ranges.
     const cuts = (highlight ?? []).filter(([a, b]) => b > start && a < end);
-    if (!cuts.length) return [node(text.slice(start, end))];
+    if (!cuts.length) return [node(text.slice(start, end), start)];
     const out: ReactNode[] = [];
     let i = start;
     for (const [a0, b0] of cuts) {
       const a = Math.max(a0, start);
       const b = Math.min(b0, end);
-      if (a > i) out.push(node(text.slice(i, a)));
+      if (a > i) out.push(node(text.slice(i, a), i));
       out.push(
         // LINE for Mac: every match blue with white text, the current one yellow.
         <mark key={`h${a}`} style={{ background: current ? "#F8F850" : "#6890E8", color: current ? "#111111" : "#FFFFFF" }}>
@@ -56,7 +56,7 @@ export function RichText({
       );
       i = b;
     }
-    if (i < end) out.push(node(text.slice(i, end)));
+    if (i < end) out.push(node(text.slice(i, end), i));
     return out;
   };
 
@@ -112,7 +112,7 @@ export function RichText({
             {linkify(text.slice(p.start, p.end)).map((seg) => {
               const s = offset;
               offset += seg.text.length;
-              const body = marks(s, s + seg.text.length, (x) => emojiText(x, `${s}-`, s));
+              const body = marks(s, s + seg.text.length, (x, offset) => emojiText(x, `${offset}-`, offset));
               if (!seg.url) return <Fragment key={s}>{body}</Fragment>;
               const url = seg.url;
               return (

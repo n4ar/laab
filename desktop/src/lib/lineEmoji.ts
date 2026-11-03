@@ -3,9 +3,9 @@
 // name and accept the common aliases used by older clients.
 const EMOJI: Record<string, string> = {
   excited: "😆", "big smile": "😆", happy: "😊", smile: "😊",
-  nice: "👍", love: "❤️", fun: "😆", amazing: "😮", omg: "😱",
+  nice: "👍", love: "❤️", amazing: "😮", omg: "😱",
   "in love": "😍", shy: "☺️", blush: "☺️",
-  sad: "😢", crying: "😭", cry: "😭", angry: "😠",
+  crying: "😭", cry: "😭", angry: "😠",
   surprised: "😮", "big eyes": "😮", sleepy: "😴", confused: "😕",
   wink: "😉", sweat: "😓", worried: "😟", frown: "☹️",
   scream: "😱", scared: "😨", dizzy: "😵", speechless: "😶",

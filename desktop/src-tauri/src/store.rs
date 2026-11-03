@@ -223,7 +223,7 @@ impl Store {
             tx.execute(
                 "INSERT INTO chats (id,name,kind,preview,activity,unread,avatar,muted,picture,member_count) VALUES (?,?,?,?,?,?,?,?,?,?)
                  ON CONFLICT(id) DO UPDATE SET name=excluded.name, kind=excluded.kind, preview=excluded.preview, activity=excluded.activity,
-                 unread=excluded.unread, avatar=COALESCE(excluded.avatar, chats.avatar), muted=excluded.muted,
+                 unread=CASE WHEN chats.unread=1 THEN 1 ELSE excluded.unread END, avatar=COALESCE(excluded.avatar, chats.avatar), muted=excluded.muted,
                  picture=COALESCE(excluded.picture, chats.picture), member_count=COALESCE(excluded.member_count, chats.member_count)",
                 params![c.id, c.name, c.kind, c.preview, c.last_activity, c.unread, c.avatar, c.muted as i64, c.picture, c.member_count],
             )?;

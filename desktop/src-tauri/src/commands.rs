@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use line_rs::client::{MessageInput, ReactionType};
-use line_rs::obs::{ObjType, ObsFile};
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 
@@ -395,15 +394,10 @@ pub async fn send_image_bytes(state: S<'_>, request: tauri::ipc::Request<'_>) ->
     let l = s.line().await.ok_or("not_logged_in")?;
     s.status(format!("กำลังส่ง {name}"));
     let chat = l.chat(&chat_id);
-    if let Err(e) = chat.send_image(data.clone(), Some(&name)).await {
-        let text = e.to_string();
-        if !text.to_ascii_lowercase().contains("e2ee") {
-            return Err(text);
-        }
-        chat.send_media(ObjType::Image, ObsFile::new(data.clone()).name(&name), None, false)
-            .await
-            .map_err(err)?;
-    }
+    chat.send_image(data.to_vec(), Some(&name)).await.map_err(|e| {
+        send_failed(&s, crate::usage::Action::SentFile, e)
+    })?;
+    crate::usage::hit(crate::usage::Action::SentFile);
     s.status("เชื่อม LINE แล้ว");
     let _ = line::fetch_history(&s, &chat_id).await;
     Ok(())
