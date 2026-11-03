@@ -285,3 +285,9 @@ export const PlugIcon = (p: P) => (
     <path d="M9 3v4M15 3v4M6.5 7h11v3.5a5.5 5.5 0 0 1-11 0V7ZM12 16v5" />
   </svg>
 );
+export const CalendarIcon = (p: P) => (
+  <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={p.strokeWidth ?? 2} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="4" y="5" width="16" height="15" rx="3" />
+    <path d="M8 3v4M16 3v4M4 10h16" />
+  </svg>
+);
