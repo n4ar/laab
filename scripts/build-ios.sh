@@ -19,6 +19,18 @@ cd desktop
 pnpm install --frozen-lockfile
 mkdir -p "$root/dist"
 
+# LiteRT-LM's library for the local-ai plugin, which the app embeds. The same
+# version and checksum as the plugin's Package.swift.
+frameworks=src-tauri/gen/apple/Frameworks
+if [[ ! -d $frameworks/CLiteRTLM.xcframework ]]; then
+  mkdir -p "$frameworks"
+  curl -fsSL -o "$frameworks/CLiteRTLM.zip" \
+    https://github.com/google-ai-edge/LiteRT-LM/releases/download/v0.19.0/CLiteRTLM.xcframework.zip
+  echo "b7b2450fc084058adc5185498f8b7810a9297e054a10cf55818b62e1d5f8d65d  $frameworks/CLiteRTLM.zip" | shasum -a 256 -c -
+  unzip -q "$frameworks/CLiteRTLM.zip" -d "$frameworks"
+  rm "$frameworks/CLiteRTLM.zip"
+fi
+
 if $device; then
   : "${APPLE_DEVELOPMENT_TEAM:?set APPLE_DEVELOPMENT_TEAM to your Apple Team ID}"
   pnpm tauri ios build --target aarch64 --export-method debugging --config "{\"version\":\"$version\"}"

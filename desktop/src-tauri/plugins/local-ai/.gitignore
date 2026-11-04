@@ -1,0 +1,4 @@
+/.tauri
+/target
+/permissions/schemas
+.DS_Store

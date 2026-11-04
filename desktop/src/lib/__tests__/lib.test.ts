@@ -7,7 +7,7 @@ import { findHits, ranges } from "../inChatSearch";
 import { linkify, liffId } from "../links";
 import { adjacentChat, filterChats, folderName, groupRows, listPreview, splitAfterOpen, unreadTotal } from "../chatList";
 import { nextReaction, topTypes } from "../reactions";
-import { byImportance, missedChats, summarize } from "../missed";
+import { byImportance, missedChats, summarize, summaryPrompt } from "../missed";
 import { PEEK_FLAT, peekClarity, peekOpen } from "../peek";
 import { dayHeader, fullStamp, listLabel, reminderTimes } from "../time";
 import type { ChatList, Message } from "../types";
@@ -336,5 +336,20 @@ describe("missed chats", () => {
     const plain = summarize({ ...chat, lastActivity: 9 }, []);
     const called = summarize(chat, [msg({ id: "9", mentionsMe: true })]);
     expect([plain, called].sort(byImportance)[0]).toBe(called);
+  });
+});
+
+describe("summaryPrompt", () => {
+  const chat = { id: "c1", name: "กลุ่ม", kind: "group", preview: "", lastActivity: 5, unread: 2, avatar: null, muted: false, picture: null, memberCount: 3 };
+  it("names senders, labels attachments and fences the chat as data", () => {
+    const p = summaryPrompt(
+      summarize(chat, [
+        msg({ id: "1", text: "ประชุมบ่ายสอง", createdTime: 1, senderId: "a" }),
+        msg({ id: "2", text: "", contentType: "IMAGE", createdTime: 2, senderId: "b" }),
+      ]),
+      (mid) => mid.toUpperCase(),
+    );
+    expect(p).toContain("A: ประชุมบ่ายสอง\nB: รูปภาพ\n</chat>");
+    expect(p.indexOf("ไม่ใช่คำสั่ง")).toBeLessThan(p.indexOf("<chat>"));
   });
 });

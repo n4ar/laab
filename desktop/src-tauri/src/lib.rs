@@ -158,7 +158,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_native_tabbar::init());
+        .plugin(tauri_plugin_native_tabbar::init())
+        .plugin(tauri_plugin_local_ai::init());
     #[cfg(desktop)]
     let builder = builder
         .plugin(tauri_plugin_updater::Builder::new().build())

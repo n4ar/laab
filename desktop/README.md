@@ -73,6 +73,7 @@ The same code builds as an iPhone app (Tauri 2 iOS; the Xcode project is in `src
 - **เก็บไฟล์ของแชทนี้ไว้ถาวร** in a chat's menu pages back through its whole history and downloads every photo, video and file, slowly and only while LAAB is open. They stay out of the 2 GB limit and **ล้าง cache**; signing out still deletes them. Search can also narrow messages by sender, kind and date.
 - **เตือนให้ตอบ** in a chat's menus sets a local notification: in an hour, tonight or tomorrow morning. iOS delivers it even with LAAB closed, and replying to the chat cancels it.
 - **แชทที่พลาด**, at the top of the chat list when anything is unread: who wrote in each chat, whether they mentioned you, its photos, files and links, and the latest message. It is worked out on the device, and reading it sends no read receipt.
+- **สรุปด้วย AI** in แชทที่พลาด summarizes a chat with Gemma 4 E2B on the phone (the `local-ai` plugin, on LiteRT-LM), so no message leaves it. The 2.6 GB model downloads from Hugging Face only when asked. `scripts/build-ios.sh` fetches LiteRT-LM's framework into `gen/apple/Frameworks`; `pnpm tauri ios dev` needs that folder too.
 - QR sign-in: on a phone that has LINE, **เปิดแอป LINE บนเครื่องนี้** (Open LINE on this device) opens the QR's link in LINE to confirm.
 
 ```bash

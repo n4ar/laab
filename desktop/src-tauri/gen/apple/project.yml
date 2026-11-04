@@ -81,6 +81,8 @@ targets:
     dependencies:
       - framework: libapp.a
         embed: false
+      - framework: Frameworks/CLiteRTLM.xcframework
+        embed: true
       - sdk: CoreGraphics.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework

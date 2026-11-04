@@ -1,0 +1,14 @@
+[package]
+name = "tauri-plugin-local-ai"
+version = "0.1.0"
+description = "Summaries from a model that runs on the iPhone, so chats stay on it."
+license = "GPL-3.0-or-later"
+edition = "2024"
+publish = false
+links = "tauri-plugin-local-ai"
+
+[dependencies]
+tauri = { version = "2.12.4" }
+
+[build-dependencies]
+tauri-plugin = { version = "2.7.2", features = ["build"] }

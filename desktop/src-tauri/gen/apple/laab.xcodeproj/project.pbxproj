@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1C0000000000000000000F2 /* CLiteRTLM.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1C0000000000000000000F1 /* CLiteRTLM.xcframework */; };
+		A1C0000000000000000000F3 /* CLiteRTLM.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A1C0000000000000000000F1 /* CLiteRTLM.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		17A56D506D325D2C3FA8236D /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B5132AE4C8E93A4406442B64 /* UIKit.framework */; };
 		19F6A4DA6B5ED5037A84457D /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 47869D1613A9942E278A8BCA /* main.mm */; };
 		1EF4BE5E1CD16B12DC465ED0 /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 59464C7636DA95FA9681B38C /* libapp.a */; };
@@ -21,7 +23,22 @@
 		FBFEC13AB50A6740D0A75728 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B47C35B9107B7106375186B7 /* Metal.framework */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		A1C0000000000000000000F4 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				A1C0000000000000000000F3 /* CLiteRTLM.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		A1C0000000000000000000F1 /* CLiteRTLM.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Frameworks/CLiteRTLM.xcframework; sourceTree = SOURCE_ROOT; };
 		0BA277EB722F5C51DF875BA0 /* actions.rs */ = {isa = PBXFileReference; path = actions.rs; sourceTree = "<group>"; };
 		0BBAED192E81D4DC54AB12F1 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		0BE511C867BB653F33F5C88E /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
@@ -62,6 +79,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1EF4BE5E1CD16B12DC465ED0 /* libapp.a in Frameworks */,
+				A1C0000000000000000000F2 /* CLiteRTLM.xcframework in Frameworks */,
 				D7A2E8A008776DAF66434B10 /* CoreGraphics.framework in Frameworks */,
 				FBFEC13AB50A6740D0A75728 /* Metal.framework in Frameworks */,
 				DF6AE5D918E862796B202EA0 /* MetalKit.framework in Frameworks */,
@@ -126,6 +144,7 @@
 		B5737523E7158A4F0DA02834 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A1C0000000000000000000F1 /* CLiteRTLM.xcframework */,
 				0BE511C867BB653F33F5C88E /* CoreGraphics.framework */,
 				59464C7636DA95FA9681B38C /* libapp.a */,
 				B47C35B9107B7106375186B7 /* Metal.framework */,
@@ -189,6 +208,7 @@
 				E1C6C2D214DAB31F144C0EB7 /* Sources */,
 				BF485364C2A48318301A15E5 /* Resources */,
 				B5954211F540F6C1F423764B /* Frameworks */,
+				A1C0000000000000000000F4 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
