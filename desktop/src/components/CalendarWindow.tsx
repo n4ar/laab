@@ -3,7 +3,9 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { api, errorText, queryClient, useChatList, usePeople } from "../lib/api";
 import {
+  ALL_CALENDARS,
   agendaTimes,
+  calendarName,
   byDay,
   eventDays,
   type EventForm,
@@ -24,26 +26,56 @@ import { openUrl } from "../lib/open";
 import type { CalendarEvent } from "../lib/types";
 import { notice, setUi } from "../lib/ui";
 import { ConfirmDialog } from "./Dialogs";
-import { CalendarIcon, ChevronIcon, ClockIcon, LinkIcon, PersonIcon, PlaceIcon, TextIcon } from "./Icons";
+import { BubbleIcon, CalendarIcon, ChevronIcon, ClockIcon, LinkIcon, PersonIcon, PlaceIcon, TextIcon } from "./Icons";
 import { DatePicker, TimeField } from "./DateTimePicker";
 import { Spinner, Switch } from "./kit";
 
 // A chat's LINE Calendar, in its own window like albums and notes: a month,
-// the chosen day's agenda, an event, and a form to add or edit one.
+// the chosen day's agenda, an event, and a form to add or edit one. Opened
+// from the rail with ALL_CALENDARS, it shows every calendar at once, as
+// LINE's Calendar tab does, and names each event's chat.
 
 type View = { kind: "month" } | { kind: "event"; id: string } | { kind: "edit"; event: CalendarEvent | null };
 
-const key = (chatId: string) => ["calendar", chatId];
-const refresh = (chatId: string) => queryClient.invalidateQueries({ queryKey: key(chatId) });
+/** A calendar the window can add to. */
+type Target = { chatId: string; name: string };
+
+// Both kinds of window share the "calendar" prefix, so an edit in one
+// refreshes the other.
+const refresh = () => queryClient.invalidateQueries({ queryKey: ["calendar"] });
 
 export function CalendarWindow({ chatId, at }: { chatId: string; at: string }) {
-  const title = useChatList()?.chats.find((c) => c.id === chatId)?.name ?? "";
+  const all = chatId === ALL_CALENDARS;
+  const chats = useChatList()?.chats;
+  const chatName = (id: string) => chats?.find((c) => c.id === id)?.name;
+  const title = all ? "" : (chatName(chatId) ?? "");
   useEffect(() => {
     getCurrentWindow()
       .setTitle(title ? `ปฏิทิน · ${title}` : "ปฏิทิน")
       .catch(() => {});
   }, [title]);
-  const { data, isLoading, error } = useQuery({ queryKey: key(chatId), queryFn: () => api.calendarEvents(chatId), staleTime: 0 });
+  const {
+    data: loaded,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["calendar", chatId],
+    queryFn: () => (all ? api.allCalendarEvents() : api.calendarEvents(chatId).then((events) => ({ calendars: [], events }))),
+    staleTime: 0,
+  });
+  const data = loaded?.events;
+  // The window's calendars by name, for the agenda and the add form; null
+  // in a chat's own window, where every event is that chat's.
+  const targets: Target[] | null = useMemo(
+    () =>
+      all
+        ? (loaded?.calendars ?? [])
+            .map((c) => ({ chatId: c.chatId, name: calendarName(c.chatId, chatName(c.chatId), c.name) }))
+            .sort((a, b) => a.name.localeCompare(b.name, "th"))
+        : null,
+    [all, loaded, chats],
+  );
+  const nameOf = (id: string) => targets?.find((t) => t.chatId === id)?.name ?? calendarName(id, chatName(id));
   const [day, setDay] = useState(todayKey);
   const [view, setView] = useState<View>({ kind: "month" });
   // Opening the window again (a calendar link, the menu) goes back to today.
@@ -61,12 +93,13 @@ export function CalendarWindow({ chatId, at }: { chatId: string; at: string }) {
         className="drag flex h-[26px] shrink-0 items-center justify-center px-16 text-[12.5px] font-semibold text-secondary"
         data-tauri-drag-region
       >
-        <span className="truncate">{title || "ปฏิทิน"}</span>
+        <span className="truncate">{all ? "ทุกปฏิทิน" : title || "ปฏิทิน"}</span>
       </div>
       <div key={pane} className="flex min-h-0 flex-1 flex-col motion-safe:animate-pane-in">
         {view.kind === "edit" ? (
           <Editor
             chatId={chatId}
+            targets={targets}
             event={view.event}
             day={day}
             onDone={(saved) => {
@@ -76,7 +109,7 @@ export function CalendarWindow({ chatId, at }: { chatId: string; at: string }) {
           />
         ) : viewing ? (
           <Detail
-            chatId={chatId}
+            source={all ? nameOf(viewing.chatId) : null}
             event={viewing}
             onBack={() => setView({ kind: "month" })}
             onEdit={() => setView({ kind: "edit", event: viewing })}
@@ -88,6 +121,7 @@ export function CalendarWindow({ chatId, at }: { chatId: string; at: string }) {
             error={error}
             day={day}
             onDay={setDay}
+            source={all ? (e) => nameOf(e.chatId) : null}
             onOpen={(id) => setView({ kind: "event", id })}
             onAdd={() => setView({ kind: "edit", event: null })}
           />
@@ -108,6 +142,7 @@ function Month({
   error,
   day,
   onDay,
+  source,
   onOpen,
   onAdd,
 }: {
@@ -116,6 +151,8 @@ function Month({
   error: unknown;
   day: string;
   onDay: (d: string) => void;
+  /** The event's chat name, in the all-calendars window. */
+  source: ((e: CalendarEvent) => string) | null;
   onOpen: (id: string) => void;
   onAdd: () => void;
 }) {
@@ -245,6 +282,12 @@ function Month({
               <span className={`w-[3px] shrink-0 rounded-full ${e.allDay ? "bg-line-green/45" : "bg-line-green"}`} />
               <span className="min-w-0 flex-1 py-px">
                 <span className="block truncate text-[13.5px] leading-[18px] font-medium">{e.title || "(ไม่มีชื่อ)"}</span>
+                {source && (
+                  <span className="mt-0.5 flex items-center gap-1 text-[11.5px] text-secondary">
+                    <BubbleIcon size={10} className="shrink-0" />
+                    <span className="truncate">{source(e)}</span>
+                  </span>
+                )}
                 {e.location && (
                   <span className="mt-0.5 flex items-center gap-1 text-[11.5px] text-secondary">
                     <PlaceIcon size={11} className="shrink-0" />
@@ -273,7 +316,19 @@ function Month({
 
 // -- event -------------------------------------------------------------------
 
-function Detail({ chatId, event: e, onBack, onEdit }: { chatId: string; event: CalendarEvent; onBack: () => void; onEdit: () => void }) {
+function Detail({
+  source,
+  event: e,
+  onBack,
+  onEdit,
+}: {
+  /** The event's chat name, in the all-calendars window. */
+  source: string | null;
+  event: CalendarEvent;
+  onBack: () => void;
+  onEdit: () => void;
+}) {
+  const chatId = e.chatId;
   const people = usePeople();
   const creator = e.creator ? (people[e.creator]?.name ?? null) : null;
   const first = eventDays(e)[0];
@@ -282,13 +337,13 @@ function Detail({ chatId, event: e, onBack, onEdit }: { chatId: string; event: C
     setUi({
       confirm: {
         title: "ลบนัดหมายนี้หรือไม่",
-        body: "นัดจะหายจากปฏิทินของแชทนี้สำหรับทุกคน",
+        body: source ? `นัดจะหายจากปฏิทินของ ${source} สำหรับทุกคน` : "นัดจะหายจากปฏิทินของแชทนี้สำหรับทุกคน",
         action: "ลบ",
         danger: true,
         run: () =>
           api
             .deleteCalendarEvent(chatId, e.id, e.updatedAt, false)
-            .then(() => refresh(chatId))
+            .then(refresh)
             .then(onBack)
             .catch((err) => notice(errorText(err))),
       },
@@ -321,6 +376,12 @@ function Detail({ chatId, event: e, onBack, onEdit }: { chatId: string; event: C
           <Info icon={<ClockIcon size={16} />}>
             <span className="tabular-nums">{timeLabel(e)}</span>
           </Info>
+          {source && (
+            <Info icon={<BubbleIcon size={15} />}>
+              <span className="text-secondary">ปฏิทินของ </span>
+              {source}
+            </Info>
+          )}
           {e.location && (
             <Info icon={<PlaceIcon size={16} />}>
               <span className="selectable">{e.location}</span>
@@ -399,12 +460,15 @@ const bare = "selectable min-w-0 flex-1 bg-transparent text-[13px] outline-none 
 
 /** Add or edit. `onDone` gets the saved event's first day, or nothing when cancelled. */
 function Editor({
-  chatId,
+  chatId: windowChat,
+  targets,
   event,
   day,
   onDone,
 }: {
   chatId: string;
+  /** The calendars a new event can go in, in the all-calendars window. */
+  targets: Target[] | null;
   event: CalendarEvent | null;
   day: string;
   onDone: (day?: string) => void;
@@ -412,6 +476,10 @@ function Editor({
   const [f, setF] = useState<EventForm>(() => (event ? formOf(event) : newForm(day)));
   // LINE posts a card in the chat for a new event; edits stay quiet unless asked.
   const [notify, setNotify] = useState(!event);
+  const [target, setTarget] = useState(() => event?.chatId ?? (targets ? lastTarget(targets) : windowChat));
+  const chatId = event?.chatId ?? target;
+  // The user's own calendar has no chat to post in.
+  const ownCalendar = chatId.startsWith("cal:");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const set = <K extends keyof EventForm>(k: K, v: EventForm[K]) => {
@@ -435,12 +503,14 @@ function Editor({
     if (busy) return;
     const input = inputOf(f);
     if ("error" in input) return setProblem(input.error);
+    if (!chatId) return setProblem("เลือกปฏิทินก่อน");
+    if (targets) remember(chatId);
     setBusy(true);
     const call = event
-      ? api.updateCalendarEvent(chatId, event.id, event.updatedAt, input, notify)
-      : api.createCalendarEvent(chatId, input, notify);
+      ? api.updateCalendarEvent(chatId, event.id, event.updatedAt, input, notify && !ownCalendar)
+      : api.createCalendarEvent(chatId, input, notify && !ownCalendar);
     call
-      .then(() => refresh(chatId))
+      .then(refresh)
       .then(() => onDone(f.startDate))
       .catch((e) => setProblem(errorText(e)))
       .finally(() => setBusy(false));
@@ -478,6 +548,27 @@ function Editor({
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pt-1 pb-4">
+        {targets && !event && (
+          <Group>
+            <label className={rowClass}>
+              <BubbleIcon size={14} className="shrink-0 text-secondary" />
+              <span className="flex-1 text-[13px]">ปฏิทิน</span>
+              <select
+                aria-label="ปฏิทิน"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                className="h-7 max-w-[60%] min-w-0 truncate rounded-[7px] bg-chat/60 px-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-line-green/50"
+              >
+                {!target && <option value="">เลือก…</option>}
+                {targets.map((t) => (
+                  <option key={t.chatId} value={t.chatId}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </Group>
+        )}
         <Group>
           <div className="px-3 pt-2.5 pb-2">
             <input
@@ -536,15 +627,19 @@ function Editor({
           </label>
         </Group>
 
-        <Group>
-          <div className={`${rowClass} py-2`}>
-            <span className="flex-1">
-              <span className="block text-[13px]">แจ้งในแชท</span>
-              <span className="block text-[11.5px] text-secondary">{event ? "บอกสมาชิกว่านัดนี้เปลี่ยน" : "โพสต์การ์ดนัดหมายลงในแชท"}</span>
-            </span>
-            <Switch label="แจ้งในแชท" checked={notify} onChange={setNotify} />
-          </div>
-        </Group>
+        {!ownCalendar && (
+          <Group>
+            <div className={`${rowClass} py-2`}>
+              <span className="flex-1">
+                <span className="block text-[13px]">แจ้งในแชท</span>
+                <span className="block text-[11.5px] text-secondary">
+                  {event ? "บอกสมาชิกว่านัดนี้เปลี่ยน" : "โพสต์การ์ดนัดหมายลงในแชท"}
+                </span>
+              </span>
+              <Switch label="แจ้งในแชท" checked={notify} onChange={setNotify} />
+            </div>
+          </Group>
+        )}
 
         {problem && (
           <p role="alert" className="selectable px-1 text-[12px] text-pretty text-badge-red">
@@ -554,6 +649,23 @@ function Editor({
       </div>
     </form>
   );
+}
+
+// The all-calendars window offers the calendar last added to first.
+const LAST_TARGET = "laab.calendar.last";
+
+function lastTarget(targets: Target[]): string {
+  let last: string | null = null;
+  try {
+    last = localStorage.getItem(LAST_TARGET);
+  } catch {}
+  return targets.find((t) => t.chatId === last)?.chatId ?? targets[0]?.chatId ?? "";
+}
+
+function remember(chatId: string) {
+  try {
+    localStorage.setItem(LAST_TARGET, chatId);
+  } catch {}
 }
 
 function When({

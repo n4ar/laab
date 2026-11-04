@@ -23,6 +23,13 @@ const shortMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.
 const weekdayShort = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
 const weekdayLong = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
 export { shortMonths };
+/** The calendar window's chat id for every calendar at once (the rail's button). */
+export const ALL_CALENDARS = "all";
+
+/** A calendar's name: the chat's, or the user's own calendar. */
+export const calendarName = (chatId: string, chatName?: string, lineName?: string) =>
+  chatName || lineName || (chatId.startsWith("cal:") ? "ปฏิทินของฉัน" : "แชท");
+
 export const weekdayLetters = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 
 const DAY = 86_400_000;

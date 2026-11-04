@@ -304,6 +304,7 @@ pub fn run() {
             commands::delete_note,
             commands::list_albums,
             commands::calendar_events,
+            commands::all_calendar_events,
             commands::create_calendar_event,
             commands::update_calendar_event,
             commands::delete_calendar_event,

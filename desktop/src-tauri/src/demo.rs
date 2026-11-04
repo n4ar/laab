@@ -447,6 +447,30 @@ pub fn calendar_events(chat_id: &str) -> Vec<crate::actions::CalendarEvent> {
     })
 }
 
+/// The demo's calendars with events, as the rail's ปฏิทิน window lists them.
+const DEMO_CALENDARS: [(&str, &str); 2] = [
+    ("c_harvest", "ทีม Harvest App"),
+    ("c_run", "ชมรมวิ่งเช้าวันอาทิตย์"),
+];
+
+pub fn all_calendar_events() -> crate::actions::AllCalendars {
+    let mut events: Vec<_> = DEMO_CALENDARS
+        .iter()
+        .flat_map(|(id, _)| calendar_events(id))
+        .collect();
+    events.sort_by_key(|e| (e.start, e.end));
+    crate::actions::AllCalendars {
+        calendars: DEMO_CALENDARS
+            .iter()
+            .map(|(id, name)| crate::actions::CalendarInfo {
+                chat_id: id.to_string(),
+                name: name.to_string(),
+            })
+            .collect(),
+        events,
+    }
+}
+
 pub fn save_calendar_event(
     chat_id: &str,
     id: Option<&str>,
@@ -467,6 +491,7 @@ pub fn save_calendar_event(
             creator: "me".into(),
             updated_at: now,
             editable: true,
+            chat_id: chat_id.to_string(),
         };
         match events.iter_mut().find(|e| Some(e.id.as_str()) == id) {
             Some(old) => {
@@ -508,6 +533,7 @@ fn seed_calendar(chat_id: &str) -> Vec<crate::actions::CalendarEvent> {
             creator: creator.into(),
             updated_at: today,
             editable: true,
+            chat_id: chat_id.to_string(),
         }
     };
     let at = |d: i64, h: i64, m: i64, mins: i64| {

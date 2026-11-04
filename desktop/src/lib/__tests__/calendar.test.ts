@@ -7,6 +7,7 @@ import {
   longDayLabel,
   formOf,
   inputOf,
+  calendarName,
   monthGrid,
   newForm,
   timeLabel,
@@ -16,6 +17,7 @@ import type { CalendarEvent } from "../types";
 const ev = (p: Partial<CalendarEvent>): CalendarEvent => ({
   id: "e",
   title: "t",
+  chatId: "c",
   start: 0,
   end: 0,
   allDay: false,
@@ -107,5 +109,13 @@ describe("calendar", () => {
     expect(durationLabel(60)).toBe("1 ชม.");
     expect(durationLabel(90)).toBe("1.5 ชม.");
     expect(durationLabel(130)).toBe("2 ชม. 10 นาที");
+  });
+});
+
+describe("calendarName", () => {
+  it("prefers the chat's name, then LINE's, then says whose", () => {
+    expect(calendarName("c1", "ทีม", "x")).toBe("ทีม");
+    expect(calendarName("c1", undefined, "ทีม LINE")).toBe("ทีม LINE");
+    expect(calendarName("cal:abc")).toBe("ปฏิทินของฉัน");
   });
 });

@@ -197,6 +197,15 @@ export interface CalendarEvent {
   /** LINE's client_updated_at, sent back on edit and delete. */
   updatedAt: number;
   editable: boolean;
+  /** Whose calendar: a chat mid, or `cal:` and an id for the user's own
+   *  calendar. Edits and deletes go here. */
+  chatId: string;
+}
+
+/** Every calendar the user can see, for the rail's ปฏิทิน window. */
+export interface AllCalendars {
+  calendars: { chatId: string; name: string }[];
+  events: CalendarEvent[];
 }
 
 export type CalendarEventInput = Pick<

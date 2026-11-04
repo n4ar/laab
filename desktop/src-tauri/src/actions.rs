@@ -670,6 +670,51 @@ pub struct CalendarEvent {
     pub updated_at: i64,
     /// False for events LINE Calendar won't let anyone edit (made elsewhere).
     pub editable: bool,
+    /// Whose calendar it is: a chat mid, or `cal:` and a calendar id for a
+    /// calendar that isn't a chat's (the user's own). Edits go back there.
+    pub chat_id: String,
+}
+
+/// One of the calendars in the all-calendars view.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarInfo {
+    /// What [`CalendarEvent::chat_id`] holds for its events.
+    pub chat_id: String,
+    pub name: String,
+}
+
+/// Every calendar the user can see, and all their events.
+#[derive(Debug, Clone, Serialize)]
+pub struct AllCalendars {
+    pub calendars: Vec<CalendarInfo>,
+    pub events: Vec<CalendarEvent>,
+}
+
+/// Where a write for `chat_id` (see [`CalendarEvent::chat_id`]) goes.
+fn calendar_target(chat_id: &str) -> EventTarget<'_> {
+    match chat_id.strip_prefix("cal:") {
+        Some(id) => EventTarget::Calendar(id),
+        None => EventTarget::Chat(chat_id),
+    }
+}
+
+fn calendar_event(e: line_rs::client::calendar::Event, chat_id: &str) -> CalendarEvent {
+    CalendarEvent {
+        id: e.id,
+        title: e.title,
+        start: e.start_time,
+        end: e.end_time,
+        all_day: e.is_all_day,
+        timezone: e.timezone,
+        location: e.location,
+        url: e.url,
+        description: e.description,
+        creator: e.creator_id,
+        updated_at: e.client_updated_at,
+        editable: e.is_editable_in_line_calendar,
+        chat_id: chat_id.to_string(),
+    }
 }
 
 /// What the event form sends for a new or edited event.
@@ -708,28 +753,58 @@ pub async fn calendar_events(state: &Arc<AppState>, chat_id: &str) -> Result<Vec
     let events = l
         .client
         .base
-        .list_events_stream(EventTarget::Chat(chat_id), 0)
+        .list_events_stream(calendar_target(chat_id), 0)
         .await?;
     let mut out: Vec<CalendarEvent> = events
         .into_iter()
         .filter(|e| !e.is_deleted)
-        .map(|e| CalendarEvent {
-            id: e.id,
-            title: e.title,
-            start: e.start_time,
-            end: e.end_time,
-            all_day: e.is_all_day,
-            timezone: e.timezone,
-            location: e.location,
-            url: e.url,
-            description: e.description,
-            creator: e.creator_id,
-            updated_at: e.client_updated_at,
-            editable: e.is_editable_in_line_calendar,
-        })
+        .map(|e| calendar_event(e, chat_id))
         .collect();
     out.sort_by_key(|e| (e.start, e.end));
     Ok(out)
+}
+
+/// Every calendar's events at once, as LINE's Calendar tab shows them. A
+/// calendar that fails to load is left out rather than failing the rest.
+pub async fn all_calendar_events(state: &Arc<AppState>) -> Result<AllCalendars> {
+    let l = line(state).await?;
+    let calendars: Vec<CalendarInfo> = l
+        .client
+        .base
+        .list_all_calendars()
+        .await?
+        .into_iter()
+        .map(|c| CalendarInfo {
+            chat_id: if c.chatroom_id.is_empty() {
+                format!("cal:{}", c.id)
+            } else {
+                c.chatroom_id
+            },
+            name: c.name,
+        })
+        .collect();
+    let mut tasks = tokio::task::JoinSet::new();
+    for c in &calendars {
+        let (state, chat_id) = (state.clone(), c.chat_id.clone());
+        tasks.spawn(async move { calendar_events(&state, &chat_id).await });
+    }
+    let mut events = Vec::new();
+    let mut failed = None;
+    while let Some(done) = tasks.join_next().await {
+        match done {
+            Ok(Ok(list)) => events.extend(list),
+            Ok(Err(e)) => failed = Some(e),
+            Err(e) => failed = Some(e.into()),
+        }
+    }
+    // Only when nothing loaded is that an error worth showing.
+    if events.is_empty() {
+        if let Some(e) = failed {
+            return Err(e);
+        }
+    }
+    events.sort_by_key(|e| (e.start, e.end));
+    Ok(AllCalendars { calendars, events })
 }
 
 /// Adds an event to a chat's calendar. `notify` posts LINE's "event
@@ -745,7 +820,7 @@ pub async fn create_calendar_event(
     l.client
         .base
         .create_event(
-            EventTarget::Chat(chat_id),
+            calendar_target(chat_id),
             &id,
             &event.to_line(),
             Some(notify),
@@ -766,7 +841,7 @@ pub async fn update_calendar_event(
     l.client
         .base
         .update_event(
-            EventTarget::Chat(chat_id),
+            calendar_target(chat_id),
             event_id,
             &event.to_line(),
             updated_at,
@@ -786,12 +861,7 @@ pub async fn delete_calendar_event(
     let l = line(state).await?;
     l.client
         .base
-        .delete_event(
-            EventTarget::Chat(chat_id),
-            event_id,
-            updated_at,
-            Some(notify),
-        )
+        .delete_event(calendar_target(chat_id), event_id, updated_at, Some(notify))
         .await?;
     Ok(())
 }
@@ -887,7 +957,12 @@ pub async fn album_photos(
                 .as_deref()
                 .is_some_and(|t| t.eq_ignore_ascii_case("VIDEO"));
             let path = album_photo_path(state, &oid).to_string_lossy().into_owned();
-            out.push(AlbumPhoto { id, oid, path, video });
+            out.push(AlbumPhoto {
+                id,
+                oid,
+                path,
+                video,
+            });
         }
         match page.next_cursor.filter(|c| !c.is_empty()) {
             Some(next) => cursor = Some(next),
@@ -1000,7 +1075,10 @@ mod tests {
              "contentsList": [{"categoryId": "photo", "extData": {"objectId": "img1"}}]}
         ]});
         let c = parse_comments(&result);
-        assert_eq!((c[0].author_name.as_str(), c[0].text.as_str()), ("O", "สวย"));
+        assert_eq!(
+            (c[0].author_name.as_str(), c[0].text.as_str()),
+            ("O", "สวย")
+        );
         assert_eq!(c[0].author_picture.as_deref(), Some("/0hAbc"));
         assert_eq!(c[0].images, vec!["img1"]);
     }

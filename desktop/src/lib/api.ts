@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { setUi } from "./ui";
 import type { ViewerPayload } from "./viewer";
 import type {
+  AllCalendars,
   CalendarEvent,
   CalendarEventInput,
   Album,
@@ -117,6 +118,7 @@ export const api = {
   addComment: (chatId: string, postId: string, text: string) => invoke<void>("add_comment", { chatId, postId, text }),
   deleteNote: (chatId: string, postId: string) => invoke<void>("delete_note", { chatId, postId }),
   calendarEvents: (chatId: string) => invoke<CalendarEvent[]>("calendar_events", { chatId }),
+  allCalendarEvents: () => invoke<AllCalendars>("all_calendar_events"),
   createCalendarEvent: (chatId: string, event: CalendarEventInput, notify: boolean) =>
     invoke<void>("create_calendar_event", { chatId, event, notify }),
   updateCalendarEvent: (chatId: string, eventId: string, updatedAt: number, event: CalendarEventInput, notify: boolean) =>

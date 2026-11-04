@@ -1153,6 +1153,17 @@ pub async fn calendar_events(
         .map_err(err)
 }
 
+/// Every calendar's events, for the rail's ปฏิทิน window.
+#[tauri::command]
+pub async fn all_calendar_events(state: S<'_>) -> R<crate::actions::AllCalendars> {
+    crate::usage::hit(crate::usage::Action::OpenedCalendar);
+    if state.demo {
+        return Ok(crate::demo::all_calendar_events());
+    }
+    let s = state.inner().clone();
+    crate::actions::all_calendar_events(&s).await.map_err(err)
+}
+
 #[tauri::command]
 pub async fn create_calendar_event(
     state: S<'_>,
