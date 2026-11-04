@@ -85,7 +85,14 @@ pub fn sniff_mime(data: &[u8], path: &Path) -> &'static str {
             b'P',
             ..,
         ] => "image/webp",
-        [_, _, _, _, b'f', b't', b'y', b'p', ..] => "video/mp4",
+        [_, _, _, _, b'f', b't', b'y', b'p', b'h', b'e', b'i', b'c', ..]
+        | [_, _, _, _, b'f', b't', b'y', b'p', b'h', b'e', b'i', b'x', ..]
+        | [_, _, _, _, b'f', b't', b'y', b'p', b'm', b'i', b'f', b'1', ..] => "image/heic",
+        [_, _, _, _, b'f', b't', b'y', b'p', b'i', b's', b'o', b'm', ..]
+        | [_, _, _, _, b'f', b't', b'y', b'p', b'm', b'p', b'4', b'2', ..]
+        | [_, _, _, _, b'f', b't', b'y', b'p', b'm', b'p', b'4', b'1', ..]
+        | [_, _, _, _, b'f', b't', b'y', b'p', b'a', b'v', b'c', b'1', ..]
+        | [_, _, _, _, b'f', b't', b'y', b'p', b'q', b't', b' ', b' ', ..] => "video/mp4",
         _ => match path
             .extension()
             .and_then(|e| e.to_str())
@@ -96,6 +103,7 @@ pub fn sniff_mime(data: &[u8], path: &Path) -> &'static str {
             Some("jpg" | "jpeg") => "image/jpeg",
             Some("gif") => "image/gif",
             Some("webp") => "image/webp",
+            Some("heic" | "heif") => "image/heic",
             Some("svg") => "image/svg+xml",
             Some("mp4" | "mov") => "video/mp4",
             Some("m4a") => "audio/mp4",
@@ -103,6 +111,34 @@ pub fn sniff_mime(data: &[u8], path: &Path) -> &'static str {
             _ => "application/octet-stream",
         },
     }
+}
+
+/// WebKit on some macOS versions cannot display HEIC from a custom protocol.
+/// Use the system decoder so LINE-like image messages still render inline.
+#[cfg(target_os = "macos")]
+fn convert_heic(data: &[u8]) -> Option<Vec<u8>> {
+    use std::process::Command;
+    let stem = format!("laab-heic-{}-{}", std::process::id(), crate::state::now_ms() as u64);
+    let input = std::env::temp_dir().join(format!("{stem}.heic"));
+    let output = std::env::temp_dir().join(format!("{stem}.jpg"));
+    std::fs::write(&input, data).ok()?;
+    let result = Command::new("/usr/bin/sips")
+        .args(["-s", "format", "jpeg"])
+        .arg(&input)
+        .args(["--out"])
+        .arg(&output)
+        .output()
+        .ok()
+        .filter(|r| r.status.success())
+        .and_then(|_| std::fs::read(&output).ok());
+    let _ = std::fs::remove_file(input);
+    let _ = std::fs::remove_file(output);
+    result
+}
+
+#[cfg(not(target_os = "macos"))]
+fn convert_heic(_: &[u8]) -> Option<Vec<u8>> {
+    None
 }
 
 fn respond(status: StatusCode, body: Vec<u8>, mime: &str) -> Response<Vec<u8>> {
@@ -146,6 +182,12 @@ fn file_response(path: &Path, range: Option<&str>) -> Option<Response<Vec<u8>>> 
     }
     let mime = sniff_mime(&file.head(16).ok()?, path);
     crate::vault::touch(path);
+    if mime == "image/heic" && range.is_none() {
+        let data = file.read_all().ok()?;
+        if let Some(jpeg) = convert_heic(&data) {
+            return Some(respond(StatusCode::OK, jpeg, "image/jpeg"));
+        }
+    }
     let Some((start, end)) = range.and_then(|r| byte_range(r, len)) else {
         let data = file.read_all().ok()?;
         let mut res = respond(StatusCode::OK, data, mime);

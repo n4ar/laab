@@ -16,7 +16,7 @@ import { HeaderMenu } from "./ChatActions";
 import { Composer, type ComposerHandle } from "./Composer";
 import { RichMenu } from "./RichMenu";
 import { BellSlashIcon, ChevronIcon, CloseIcon, ExternalIcon, MoreVIcon, NoteIcon, SearchIcon, SpeakerIcon } from "./Icons";
-import { popupClass } from "./kit";
+import { popupClass, Spinner } from "./kit";
 import type { RowContext } from "./MessageRow";
 import { StickerPanel } from "./StickerPanel";
 import { type Older, Timeline } from "./Timeline";
@@ -74,6 +74,7 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
     index: 0,
   });
   const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const me = session?.profile?.mid ?? "";
   const signedIn = session?.state === "signed_in";
 
@@ -183,6 +184,18 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
     return () => window.removeEventListener("keydown", onKey, true);
   });
 
+  const sendDropped = useCallback(
+    (paths: string[]) => {
+      if (!paths.length || uploading) return;
+      setUploading(true);
+      api
+        .sendFiles(chatId, paths)
+        .catch((err) => notice(errorText(err)))
+        .finally(() => setUploading(false));
+    },
+    [chatId, uploading],
+  );
+
   // Files dropped on the chat are sent one by one.
   useEffect(() => {
     const off = getCurrentWebview().onDragDropEvent((e) => {
@@ -190,13 +203,13 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
       else if (e.payload.type === "leave") setDragging(false);
       else if (e.payload.type === "drop") {
         setDragging(false);
-        if (e.payload.paths.length) api.sendFiles(chatId, e.payload.paths).catch((err) => notice(errorText(err)));
+        sendDropped(e.payload.paths);
       }
     });
     return () => {
       off.then((f) => f());
     };
-  }, [chatId]);
+  }, [chatId, sendDropped]);
 
   useEffect(() => {
     if (!main && chat)
@@ -343,6 +356,12 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
         }
       />
       {chat?.kind === "bot" && <RichMenu key={chatId} chatId={chatId} />}
+      {uploading && (
+        <div className="pointer-events-none absolute right-3 bottom-3 z-20 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-[12px] text-white shadow-lg">
+          <Spinner size={12} />
+          <span>กำลังส่งไฟล์…</span>
+        </div>
+      )}
       <AnimatePresence>
         {dragging && (
           <motion.div
