@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api, errorText, useChatList } from "../lib/api";
-import { downloadModel, modelStatus, type ModelState, onModelEvent, summarizeOnDevice } from "../lib/localAi";
+import { downloadModel, modelStatus, type ModelState, onModelEvent, statsLine, summarizeOnDevice } from "../lib/localAi";
 import { byImportance, missedChats, type Missed, summarize, summaryPrompt } from "../lib/missed";
 import { openChat } from "../lib/nav";
 import { ios } from "../lib/platform";
@@ -108,12 +108,12 @@ function ModelBar({ model }: { model: ReturnType<typeof useModel> }) {
 
 function Row({ missed: m, onOpen, canSummarize }: { missed: Missed; onOpen: () => void; canSummarize: boolean }) {
   const { name } = useNames(undefined);
-  const [summary, setSummary] = useState<{ text: string; busy: boolean; error?: string } | null>(null);
+  const [summary, setSummary] = useState<{ text: string; busy: boolean; error?: string; stats?: string } | null>(null);
   const runSummary = (e: React.MouseEvent) => {
     e.stopPropagation();
     setSummary({ text: "", busy: true });
     summarizeOnDevice(m.chat.id, summaryPrompt(m, name), (text) => setSummary({ text, busy: true })).then(
-      () => setSummary((s) => s && { ...s, busy: false }),
+      (stats) => setSummary((s) => s && { ...s, busy: false, stats: statsLine(stats) }),
       (err) => setSummary({ text: "", busy: false, error: errorText(err) }),
     );
   };
@@ -149,7 +149,12 @@ function Row({ missed: m, onOpen, canSummarize }: { missed: Missed; onOpen: () =
               <>
                 <span className="selectable whitespace-pre-wrap">{summary.text}</span>
                 {summary.busy && !summary.text && <Spinner size={14} />}
-                {!summary.busy && <div className="mt-1 text-[11.5px] text-secondary">สรุปโดย AI ในเครื่อง อาจผิดพลาดได้</div>}
+                {!summary.busy && (
+                  <div className="mt-1 text-[11.5px] text-secondary">
+                    สรุปโดย AI ในเครื่อง อาจผิดพลาดได้
+                    {summary.stats && <div>{summary.stats}</div>}
+                  </div>
+                )}
               </>
             )}
           </div>

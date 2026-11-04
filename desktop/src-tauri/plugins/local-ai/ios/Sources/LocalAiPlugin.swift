@@ -67,18 +67,34 @@ class LocalAiPlugin: Plugin, URLSessionDownloadDelegate {
       do {
         // ponytail: loaded per summary and let go, so 1.5 GB of GPU memory
         // isn't held while chatting; keep the engine if the wait annoys.
+        // For the token counts shown beside the summary.
+        ExperimentalFlags.optIntoExperimentalAPIs()
+        ExperimentalFlags.enableBenchmark = true
+        let started = Date()
         let config = try EngineConfig(
           modelPath: path, backend: .gpu, cacheDir: NSTemporaryDirectory())
         let engine = Engine(engineConfig: config)
         try await engine.initialize()
         let conversation = try await engine.createConversation()
+        let loaded = Date()
+        var firstToken: Date?
         var text = ""
         for try await chunk in conversation.sendMessageStream(Message(args.prompt)) {
           try Task.checkCancellation()
+          if firstToken == nil { firstToken = Date() }
           text += chunk.toString
           self?.trigger("chunk", data: ["id": args.id, "text": text])
         }
-        invoke.resolve(["text": text])
+        var result: JSObject = [
+          "text": text,
+          "loadSeconds": loaded.timeIntervalSince(started),
+          "firstTokenSeconds": (firstToken ?? loaded).timeIntervalSince(loaded),
+        ]
+        if let info = try? conversation.getBenchmarkInfo() {
+          result["tokens"] = info.lastDecodeTokenCount
+          result["tokensPerSecond"] = info.lastDecodeTokensPerSecond
+        }
+        invoke.resolve(result)
       } catch {
         invoke.reject(error is CancellationError ? "cancelled" : "\(error)")
       }
