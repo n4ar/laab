@@ -458,6 +458,7 @@ async fn ask(ctx: &Ctx, g: Group, chat: Option<String>, what: &str) -> Result<()
     let window = state.app.get_webview_window("main");
     if let Some(w) = &window {
         let _ = w.show();
+        #[cfg(desktop)]
         let _ = w.unminimize();
         let _ = w.set_focus();
     }
@@ -465,16 +466,18 @@ async fn ask(ctx: &Ctx, g: Group, chat: Option<String>, what: &str) -> Result<()
         Some(_) => MessageDialogButtons::YesNoCancelCustom(DENY.into(), ALLOW.into(), ALWAYS.into()),
         None => MessageDialogButtons::OkCancelCustom(DENY.into(), ALLOW.into()),
     };
-    let mut dialog = state
+    let dialog = state
         .app
         .dialog()
         .message(clip(what, 1200))
         .title(format!("{} ขอ{}", ctx.client, g.label()))
         .kind(MessageDialogKind::Warning)
         .buttons(buttons);
-    if let Some(w) = &window {
-        dialog = dialog.parent(w);
-    }
+    #[cfg(desktop)]
+    let dialog = match &window {
+        Some(w) => dialog.parent(w),
+        None => dialog,
+    };
     let (tx, rx) = tokio::sync::oneshot::channel();
     dialog.show_with_result(move |r| {
         let _ = tx.send(r);
