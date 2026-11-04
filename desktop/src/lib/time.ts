@@ -3,6 +3,17 @@
 const weekdays = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
 const months = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
+/** The times offered for "remind me to reply": in an hour, tonight while
+ *  that is still more than an hour away, and tomorrow morning. */
+export function reminderTimes(now = new Date()): { id: string; title: string; at: Date }[] {
+  const at = (days: number, hour: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, hour);
+  return [
+    { id: "hour", title: "อีก 1 ชั่วโมง", at: new Date(now.getTime() + 3_600_000) },
+    ...(now.getHours() < 19 ? [{ id: "tonight", title: "คืนนี้ 20.00 น.", at: at(0, 20) }] : []),
+    { id: "morning", title: "พรุ่งนี้เช้า 09.00 น.", at: at(1, 9) },
+  ];
+}
+
 /** LINE timestamps arrive in milliseconds; older rows may be in seconds. */
 export function toDate(value: number): Date | null {
   if (!(value > 0)) return null;

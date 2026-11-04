@@ -16,6 +16,7 @@ import {
 } from "../lib/mentions";
 import type { ChatMember, DraftMention } from "../lib/types";
 import { phone, useWide } from "../lib/platform";
+import { cancelReminder } from "../lib/remind";
 import { pushDismiss, setUi, useUi } from "../lib/ui";
 import { Avatar } from "./Avatar";
 import { CloseIcon, PaperclipIcon, PhotoIcon, SendIcon, SmileIcon, WarningIcon } from "./Icons";
@@ -175,6 +176,7 @@ export const Composer = forwardRef<
         savedDraft.current = null;
       } else {
         await api.sendText(chatId, body, spans, current?.kind === "reply" ? current.message.id : null);
+        if (phone) cancelReminder(chatId).catch(() => {});
       }
       if (current) setUi({ composerMode: null });
       setFailure(null);

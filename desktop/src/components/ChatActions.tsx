@@ -7,7 +7,8 @@ import { api, errorText, messageLimit, q, queryClient, useChatList, usePeople } 
 import { folderName, folderOf, isGroup } from "../lib/chatList";
 import { besideOf, closeChat, openBeside, openChat } from "../lib/nav";
 import { phone, twoChatsFit } from "../lib/platform";
-import { clock, dayHeader } from "../lib/time";
+import { cancelReminder, remind, reminderOf } from "../lib/remind";
+import { clock, dayHeader, listLabel, reminderTimes } from "../lib/time";
 import type { Chat, ChatList } from "../lib/types";
 import { findEntry, type MenuEntry } from "../lib/nativeTabbar";
 import { notice, setUi, ui, useUi } from "../lib/ui";
@@ -87,6 +88,28 @@ function confirmDelete(chat: Chat) {
   });
 }
 
+/** "Remind me to reply", from the chat's menus on a phone. */
+function remindEntry(chat: Chat): MenuEntry[] {
+  if (!phone) return [];
+  const set = reminderOf(chat.id);
+  const times = reminderTimes().map((t) => ({
+    id: `remind:${t.id}`,
+    title: t.title,
+    run: () => run(remind(chat.id, chat.name, t.at), `จะเตือน${t.title}`),
+  }));
+  const label = set ? `${listLabel(set)} ${clock(set)}` : "";
+  return [
+    {
+      id: "remind",
+      title: set ? `เตือนให้ตอบ (${label})` : "เตือนให้ตอบ",
+      icon: "bell.badge",
+      children: set
+        ? [times, [{ id: "remind:cancel", title: "ยกเลิกการเตือน", destructive: true, run: () => run(cancelReminder(chat.id)) }]]
+        : [times],
+    },
+  ];
+}
+
 /** A chat row's menu, in LINE for Mac's order: เปิดในหน้าต่างใหม่ ─
  *  ปักหมุด, ซ่อน, ลบ ─ ปิดแจ้งเตือน, then LAAB's folders. LAAB's
  *  ดูโดยไม่อ่าน leads. */
@@ -102,6 +125,7 @@ function rowMenu(chat: Chat, list: ChatList | undefined, peeked: boolean): MenuE
       ...(twoChatsFit() && besideOf(chat.id)
         ? [{ id: "beside", title: "เปิดข้าง ๆ", icon: "rectangle.split.2x1", run: () => openBeside(chat.id) }]
         : []),
+      ...remindEntry(chat),
       ...(phone ? [] : [{ id: "window", title: "เปิดในหน้าต่างใหม่", run: () => run(api.openChatWindow(chat.id, chat.name)) }]),
     ],
     [
@@ -273,6 +297,7 @@ export function useChatMenu(chat: Chat | undefined): MenuEntry[][] {
         icon: chat.muted ? "bell" : "bell.slash",
         run: () => run(api.setMuted(chat.id, !chat.muted)),
       },
+      ...remindEntry(chat),
     ],
     [
       ...(group ? [{ id: "albums", title: "อัลบั้ม", icon: "photo.on.rectangle", run: aux("albums", "albums") }] : []),

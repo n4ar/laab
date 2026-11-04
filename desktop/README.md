@@ -71,6 +71,7 @@ The same code builds as an iPhone app (Tauri 2 iOS; the Xcode project is in `src
 - Albums and notes, and photos, files and links, open as pages in the app instead of separate windows.
 - Two chats side by side on the inner screen when it is on its side: long-press a chat and pick **เปิดข้าง ๆ**. They meet at the fold, and both count as read while on screen. Touching one makes it the chat the system bars act on (the green line); opening another chat replaces that one. Upright, and on the cover screen, only that chat shows.
 - **เก็บไฟล์ของแชทนี้ไว้ถาวร** in a chat's menu pages back through its whole history and downloads every photo, video and file, slowly and only while LAAB is open. They stay out of the 2 GB limit and **ล้าง cache**; signing out still deletes them. Search can also narrow messages by sender, kind and date.
+- **เตือนให้ตอบ** in a chat's menus sets a local notification: in an hour, tonight or tomorrow morning. iOS delivers it even with LAAB closed, and replying to the chat cancels it.
 - QR sign-in: on a phone that has LINE, **เปิดแอป LINE บนเครื่องนี้** (Open LINE on this device) opens the QR's link in LINE to confirm.
 
 ```bash

@@ -8,7 +8,7 @@ import { linkify, liffId } from "../links";
 import { adjacentChat, filterChats, folderName, groupRows, listPreview, splitAfterOpen, unreadTotal } from "../chatList";
 import { nextReaction, topTypes } from "../reactions";
 import { PEEK_FLAT, peekClarity, peekOpen } from "../peek";
-import { dayHeader, fullStamp, listLabel } from "../time";
+import { dayHeader, fullStamp, listLabel, reminderTimes } from "../time";
 import type { ChatList, Message } from "../types";
 
 const msg = (p: Partial<Message>): Message => ({
@@ -301,5 +301,17 @@ describe("splitAfterOpen", () => {
   it("keeps the panes when the chat is already on screen, or there is no split", () => {
     expect(splitAfterOpen(split, "a", "b")).toBe(split);
     expect(splitAfterOpen(null, "a", "b")).toBeNull();
+  });
+});
+
+describe("reminderTimes", () => {
+  it("offers tonight only while it is over an hour away", () => {
+    const ids = (hour: number) => reminderTimes(new Date(2026, 10, 30, hour)).map((t) => t.id);
+    expect(ids(18)).toEqual(["hour", "tonight", "morning"]);
+    expect(ids(19)).toEqual(["hour", "morning"]);
+  });
+  it("rolls tomorrow over the end of the month", () => {
+    const morning = reminderTimes(new Date(2026, 10, 30, 18)).slice(-1)[0].at;
+    expect([morning.getMonth(), morning.getDate(), morning.getHours()]).toEqual([11, 1, 9]);
   });
 });

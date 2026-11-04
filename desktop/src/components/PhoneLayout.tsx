@@ -9,6 +9,7 @@ import { closeChat, closePane, openChat, touchPane } from "../lib/nav";
 import { findEntry, type MenuEntry, type SideButton, useNativeTabbar } from "../lib/nativeTabbar";
 import { peekOpen } from "../lib/peek";
 import { ios, useTwoChats, useWide } from "../lib/platform";
+import { allowNotifications } from "../lib/remind";
 import { LAST_CHAT_KEY, notice, pushDismiss, setUi, ui, useUi } from "../lib/ui";
 import { Avatar } from "./Avatar";
 import { ChatListColumn } from "./ChatList";
@@ -40,6 +41,12 @@ export function PhoneLayout({ chatId }: { chatId: string | null }) {
   const loginPage = useLoginPage();
   useSystemTabBar({ chatId, signedOut: loginPage, wide });
   useNativeChatMenu();
+
+  // iOS asks once; banners and reminders need the answer.
+  const signedIn = session?.state === "signed_in" || session?.state === "demo";
+  useEffect(() => {
+    if (signedIn) allowNotifications().catch(() => {});
+  }, [signedIn]);
 
   // Unfolded, reopen the last chat as the desktop does; the cover screen
   // starts on the chat list, as LINE does.
