@@ -9,7 +9,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    Chat, ChatMember, MentionSpan, Message, Reaction, SearchHit, SearchKind, Workspace,
+    Chat, ChatMember, MentionSpan, Message, Reaction, SearchFilter, SearchHit, SearchKind, Workspace,
 };
 
 pub struct Store {
@@ -110,6 +110,7 @@ impl Store {
              CREATE TABLE IF NOT EXISTS reactions (message_id TEXT NOT NULL, user_mid TEXT NOT NULL, type TEXT NOT NULL, mine INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(message_id, user_mid));
              CREATE TABLE IF NOT EXISTS drafts (chat_id TEXT PRIMARY KEY, body TEXT NOT NULL, mentions TEXT);
              CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+             CREATE TABLE IF NOT EXISTS kept_chats (chat_id TEXT PRIMARY KEY);
              -- line-rs storage: E2EE keys, refresh token, counters (JSON values).
              CREATE TABLE IF NOT EXISTS session (key TEXT PRIMARY KEY, value TEXT NOT NULL);
              -- The Raycast extension reads sender names from `people`.
@@ -949,7 +950,130 @@ impl Store {
         Ok(())
     }
 
+    // ------------------------------------------------------------ kept chats
+
+    pub fn kept_chats(&self) -> Result<Vec<String>> {
+        let mut stmt = self.db.prepare("SELECT chat_id FROM kept_chats")?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    pub fn set_kept(&self, chat_id: &str, on: bool) -> Result<()> {
+        let sql = if on {
+            "INSERT OR IGNORE INTO kept_chats VALUES (?)"
+        } else {
+            "DELETE FROM kept_chats WHERE chat_id=?"
+        };
+        self.db.execute(sql, [chat_id])?;
+        Ok(())
+    }
+
+    pub fn clear_kept(&self) -> Result<()> {
+        self.db.execute("DELETE FROM kept_chats", [])?;
+        self.db.execute("DELETE FROM kv WHERE key LIKE 'kept_history_done:%'", [])?;
+        Ok(())
+    }
+
+    /// A kept chat's attachments, oldest first: id, content type, file name.
+    /// Unsent ones stay out: LAAB deletes their files on purpose.
+    pub fn kept_media(&self, chat_id: &str) -> Result<Vec<(String, String, Option<String>)>> {
+        let mut stmt = self.db.prepare(
+            "SELECT id,content_type,file_name FROM messages WHERE chat_id=? AND unsent=0
+             AND content_type IN ('IMAGE','VIDEO','AUDIO','FILE') ORDER BY created",
+        )?;
+        let rows = stmt.query_map([chat_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Every message whose files the cache must not delete.
+    pub fn kept_message_ids(&self) -> Result<Vec<String>> {
+        let mut stmt = self.db.prepare(
+            "SELECT m.id FROM messages m JOIN kept_chats k ON k.chat_id=m.chat_id WHERE m.unsent=0",
+        )?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
     // ---------------------------------------------------------------- search
+
+    /// Messages by who sent them, their kind and when; `query` may be empty.
+    pub fn search_filtered(&self, query: &str, filter: &SearchFilter) -> Result<Vec<SearchHit>> {
+        let mut sql = String::from(
+            "SELECT m.id,m.chat_id,c.name,m.body,m.file_name,m.content_type
+             FROM messages m LEFT JOIN chats c ON c.id=m.chat_id WHERE m.unsent=0",
+        );
+        let mut values: Vec<rusqlite::types::Value> = Vec::new();
+        let escape = |t: &str| t.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+        let term = query.trim();
+        if !term.is_empty() {
+            sql.push_str(" AND (m.body LIKE ? ESCAPE '\\' OR m.file_name LIKE ? ESCAPE '\\')");
+            let like = format!("%{}%", escape(term));
+            values.push(like.clone().into());
+            values.push(like.into());
+        }
+        match filter.sender.as_deref() {
+            Some("me") => sql.push_str(" AND m.mine=1"),
+            Some(mid) => {
+                sql.push_str(" AND m.sender_id=? AND m.mine=0");
+                values.push(mid.to_string().into());
+            }
+            None => {}
+        }
+        match filter.content.as_deref() {
+            Some("LINK") => sql.push_str(" AND m.body LIKE '%://%'"),
+            Some(kind) => {
+                sql.push_str(" AND m.content_type=?");
+                values.push(kind.to_string().into());
+            }
+            None => {}
+        }
+        if let Some(t) = filter.since {
+            sql.push_str(" AND m.created>=?");
+            values.push(t.into());
+        }
+        if let Some(t) = filter.until {
+            sql.push_str(" AND m.created<?");
+            values.push(t.into());
+        }
+        sql.push_str(" ORDER BY m.created DESC LIMIT 200");
+        let mut stmt = self.db.prepare(&sql)?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(values), |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, Option<String>>(2)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, Option<String>>(4)?,
+                r.get::<_, String>(5)?,
+            ))
+        })?;
+        let mut hits = Vec::new();
+        for row in rows {
+            let (id, chat_id, name, body, file, ct) = row?;
+            let name = name.unwrap_or_else(|| "แชท".into());
+            let file = file.filter(|_| ct == "FILE");
+            let label = match ct.as_str() {
+                "IMAGE" => "รูปภาพ",
+                "VIDEO" => "วิดีโอ",
+                "AUDIO" => "ข้อความเสียง",
+                _ => "",
+            };
+            hits.push(SearchHit {
+                kind: if ct == "FILE" { SearchKind::File } else { SearchKind::Message },
+                chat_id,
+                message_id: Some(id),
+                detail: if file.is_some() {
+                    name.clone()
+                } else if body.is_empty() {
+                    label.into()
+                } else {
+                    body
+                },
+                title: file.unwrap_or(name),
+            });
+        }
+        Ok(hits)
+    }
 
     pub fn search(&self, query: &str, kinds: &[SearchKind]) -> Result<Vec<SearchHit>> {
         let term = query.trim();
@@ -1117,6 +1241,37 @@ mod tests {
             kind: "dm".into(),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn filters_messages_and_lists_what_a_kept_chat_holds() {
+        let mut s = Store::memory().unwrap();
+        let mine = Message { mine: true, ..msg("1", "u1", "my link https://a.co", 10.0) };
+        let photo = Message { content_type: "IMAGE".into(), sender_id: Some("u2".into()), ..msg("2", "u1", "", 20.0) };
+        let gone = Message { unsent: 1, content_type: "IMAGE".into(), ..msg("3", "u1", "", 30.0) };
+        let elsewhere = Message { sender_id: Some("u2".into()), ..msg("4", "u9", "hello", 40.0) };
+        s.upsert_messages(&[mine, photo, gone, elsewhere]).unwrap();
+        let ids = |f: SearchFilter, q: &str| -> Vec<String> {
+            s.search_filtered(q, &f).unwrap().into_iter().map(|h| h.message_id.unwrap()).collect()
+        };
+        let by = |sender: &str| SearchFilter { sender: Some(sender.into()), ..Default::default() };
+        let of = |content: &str| SearchFilter { content: Some(content.into()), ..Default::default() };
+        assert_eq!(ids(by("me"), ""), ["1"]);
+        assert_eq!(ids(by("u2"), ""), ["4", "2"]);
+        assert_eq!(ids(by("u2"), "hel"), ["4"]);
+        assert_eq!(ids(of("IMAGE"), ""), ["2"]);
+        assert_eq!(ids(of("LINK"), ""), ["1"]);
+        assert_eq!(ids(SearchFilter { since: Some(20.0), until: Some(40.0), ..Default::default() }, ""), ["2"]);
+        // Percent signs in the query are text, not wildcards.
+        assert!(ids(SearchFilter::default(), "%").is_empty());
+
+        s.set_kept("u1", true).unwrap();
+        assert_eq!(s.kept_chats().unwrap(), ["u1"]);
+        let media: Vec<String> = s.kept_media("u1").unwrap().into_iter().map(|m| m.0).collect();
+        assert_eq!(media, ["2"]);
+        assert_eq!(s.kept_message_ids().unwrap().len(), 2);
+        s.set_kept("u1", false).unwrap();
+        assert!(s.kept_message_ids().unwrap().is_empty());
     }
 
     #[test]

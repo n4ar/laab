@@ -13,7 +13,7 @@ import { HitRow, searchQuery } from "./SearchPalette";
  *  one after another without going back. Tapping the query reopens ⌘K. */
 export function SearchDock() {
   const dock = useUi((s) => s.searchDock)!;
-  const { data: hits = [], isFetching } = useQuery(searchQuery(dock.query, dock.kinds));
+  const { data: hits = [], isFetching } = useQuery(searchQuery(dock.query, dock.kinds, true, dock.filter));
   const chats = useChatList()?.chats;
   const byId = useMemo(() => new Map((chats ?? []).map((c) => [c.id, c])), [chats]);
   const show = (i: number) => {

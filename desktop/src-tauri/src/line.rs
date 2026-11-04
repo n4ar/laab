@@ -382,6 +382,7 @@ async fn connected(state: Arc<AppState>, client: Client, device: Device) {
             s.status(format!("โหลดรายชื่อแชทไม่สำเร็จ: {e}"));
         }
         name_stored_files(&s).await;
+        crate::archive::kick(&s);
     });
 }
 
@@ -693,6 +694,7 @@ async fn ingest_live(state: &Arc<AppState>, line: &Arc<Line>, msg: Message) {
         let _ = line.chat(&chat_id).mark_as_read(&msg.id).await;
     }
     crate::notify::maybe_notify(state, &chat, &msg);
+    crate::archive::message_arrived(state, &chat_id, &msg.content_type);
 }
 
 async fn new_chat_row(state: &Arc<AppState>, line: &Arc<Line>, chat_id: &str) -> Chat {

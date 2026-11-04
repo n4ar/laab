@@ -490,6 +490,29 @@ async fn note_media(state: &Arc<AppState>, svc: &str, oid: &str) -> Result<PathB
     Ok(saved)
 }
 
+/// Download a kept chat's attachment in full. True if it took a download.
+pub async fn keep(
+    state: &Arc<AppState>,
+    chat: &str,
+    id: &str,
+    content_type: &str,
+    file_name: Option<String>,
+) -> Result<bool> {
+    if content_type == "FILE" {
+        let saved = state.store().message(id)?.and_then(|m| m.file_path);
+        if saved.is_some_and(|p| Path::new(&p).exists()) {
+            return Ok(false);
+        }
+        download_file(state, chat, id, file_name).await?;
+    } else {
+        if cached_media(&state.paths.media(), id, false).is_some() {
+            return Ok(false);
+        }
+        message_media(state, chat, id, false).await?;
+    }
+    Ok(true)
+}
+
 /// Download an attachment to `cache/media/<id>.<filename>` and record it.
 pub async fn download_file(
     state: &Arc<AppState>,

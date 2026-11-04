@@ -24,7 +24,7 @@ import type {
   LiffDevSession,
   ReactionName,
   RichMenu,
-  SearchHit,
+  SearchFilter, SearchHit,
   SearchKind,
   Session,
   Sticker,
@@ -73,7 +73,10 @@ export const api = {
   moveToFolder: (chatId: string, from: string | null, to: string | null) => invoke<void>("move_to_folder", { chatId, from, to }),
   renameFolder: (id: string, name: string) => invoke<void>("rename_folder", { id, name }),
   deleteFolder: (id: string) => invoke<void>("delete_folder", { id }),
-  search: (query: string, kinds: SearchKind[]) => invoke<SearchHit[]>("search", { query, kinds }),
+  search: (query: string, kinds: SearchKind[], filter?: SearchFilter | null) =>
+    invoke<SearchHit[]>("search", { query, kinds, filter: filter ?? null }),
+  keptChats: () => invoke<string[]>("kept_chats"),
+  setKept: (chatId: string, on: boolean) => invoke<void>("set_kept", { chatId, on }),
   draft: (chatId: string) => invoke<Draft | null>("draft", { chatId }),
   setDraft: (chatId: string, draft: Draft) => invoke<void>("set_draft", { chatId, draft }),
   rawMessage: (chatId: string, messageId: string) => invoke<string>("raw_message", { chatId, messageId }),
@@ -163,6 +166,7 @@ export const q = {
   session: queryOptions({ queryKey: ["session"], queryFn: () => api.session().then(track) }),
   chats: queryOptions({ queryKey: ["chats"], queryFn: api.chats }),
   people: queryOptions({ queryKey: ["people"], queryFn: api.people }),
+  kept: queryOptions({ queryKey: ["kept"], queryFn: api.keptChats }),
   messages: (chatId: string) =>
     queryOptions({ queryKey: ["messages", chatId], queryFn: () => api.messages(chatId, messageLimit(chatId)) }),
   reads: (chatId: string) => queryOptions({ queryKey: ["reads", chatId], queryFn: () => api.reads(chatId) }),

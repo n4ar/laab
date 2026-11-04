@@ -2,6 +2,7 @@
 
 mod actions;
 mod analytics;
+mod archive;
 mod cache;
 mod commands;
 mod convert;
@@ -311,6 +312,8 @@ pub fn run() {
             commands::reveal_path,
             commands::cache_size,
             commands::clear_cache,
+            commands::kept_chats,
+            commands::set_kept,
             commands::announcements,
             commands::rich_menu,
             commands::login_password,

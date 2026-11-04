@@ -12,7 +12,7 @@ use tauri::{WebviewUrl, WebviewWindowBuilder};
 use crate::convert;
 use crate::line;
 use crate::model::{
-    ChatMember, MentionSpan, Message, SearchHit, SearchKind, Session, Sticker, StickerPack,
+    ChatMember, MentionSpan, Message, SearchFilter, SearchHit, SearchKind, Session, Sticker, StickerPack,
     Workspace,
 };
 use crate::state::{AppState, now_ms};
@@ -559,9 +559,33 @@ pub fn delete_folder(state: S<'_>, id: String) -> R<()> {
 }
 
 #[tauri::command]
-pub fn search(state: S<'_>, query: String, kinds: Vec<SearchKind>) -> R<Vec<SearchHit>> {
+pub fn search(
+    state: S<'_>,
+    query: String,
+    kinds: Vec<SearchKind>,
+    filter: Option<SearchFilter>,
+) -> R<Vec<SearchHit>> {
     crate::usage::hit(crate::usage::Action::Searched);
-    state.store().search(&query, &kinds).map_err(err)
+    match filter {
+        Some(f) => state.store().search_filtered(&query, &f).map_err(err),
+        None => state.store().search(&query, &kinds).map_err(err),
+    }
+}
+
+#[tauri::command]
+pub fn kept_chats(state: S<'_>) -> R<Vec<String>> {
+    state.store().kept_chats().map_err(err)
+}
+
+/// Keep a chat's history and files on this device, or stop. Stopping leaves
+/// what is there for the cache's limit to deal with.
+#[tauri::command]
+pub fn set_kept(state: S<'_>, chat_id: String, on: bool) -> R<()> {
+    state.store().set_kept(&chat_id, on).map_err(err)?;
+    if on {
+        crate::archive::kick(state.inner());
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -887,7 +911,7 @@ pub fn cache_size(state: S<'_>) -> u64 {
 
 #[tauri::command]
 pub fn clear_cache(state: S<'_>) -> R<()> {
-    crate::cache::clear(&state).map_err(err)
+    crate::cache::clear_unkept(&state).map_err(err)
 }
 
 #[derive(Serialize)]

@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, errorText, useChatList } from "../lib/api";
+import { api, errorText, useChatList, usePeople } from "../lib/api";
 import { openChat } from "../lib/nav";
 import { phone, useWide } from "../lib/platform";
-import type { Chat, SearchHit, SearchKind } from "../lib/types";
+import type { Chat, SearchFilter, SearchHit, SearchKind } from "../lib/types";
 import { setUi, useUi } from "../lib/ui";
 import { Avatar } from "./Avatar";
 import { DocIcon, SearchIcon } from "./Icons";
@@ -16,13 +16,27 @@ const KINDS: { id: SearchKind; label: string }[] = [
   { id: "file", label: "ไฟล์" },
 ];
 
-export const searchQuery = (query: string, kinds: SearchKind[], enabled = true) => ({
-  queryKey: ["search", query, kinds],
-  queryFn: () => api.search(query, kinds),
+const CONTENTS = [
+  ["IMAGE", "รูปภาพ"],
+  ["VIDEO", "วิดีโอ"],
+  ["FILE", "ไฟล์"],
+  ["AUDIO", "ข้อความเสียง"],
+  ["LINK", "ลิงก์"],
+];
+
+/** A `<input type="date">` value as local midnight, in milliseconds. */
+const dayStart = (day: string) => new Date(`${day}T00:00:00`).getTime();
+
+export const searchQuery = (query: string, kinds: SearchKind[], enabled = true, filter: SearchFilter | null = null) => ({
+  queryKey: ["search", query, kinds, filter],
+  queryFn: () => api.search(query, kinds, filter),
   enabled,
   placeholderData: (prev: SearchHit[] | undefined) => prev,
   staleTime: 0,
 });
+
+// iOS zooms into fields under 16px.
+const picker = `max-w-[150px] rounded-md bg-field px-2 outline-none ${phone ? "h-8 text-[16px]" : "h-[26px] text-[12px]"}`;
 
 /** ⌘K: search chats, synced messages and file names. */
 export function SearchPalette() {
@@ -40,11 +54,28 @@ export function SearchPalette() {
       setIndex(0);
     }
   }, [open, initial]);
-  const { data: hits = [], isFetching, error } = useQuery(searchQuery(query, kinds, open));
+  // Who, what kind and when: the native pickers, which a phone draws itself.
+  const [sender, setSender] = useState("");
+  const [content, setContent] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const people = usePeople();
+  const senders = useMemo(() => Object.entries(people).sort(([, a], [, b]) => a.name.localeCompare(b.name, "th")), [people]);
+  const filter: SearchFilter | null =
+    sender || content || from || to
+      ? {
+          sender: sender || undefined,
+          content: content || undefined,
+          since: from ? dayStart(from) : undefined,
+          // The whole of the last day.
+          until: to ? dayStart(to) + 86_400_000 : undefined,
+        }
+      : null;
+  const { data: hits = [], isFetching, error } = useQuery(searchQuery(query, kinds, open, filter));
   // On the unfolded iPhone Duo the results stay in the list column and the
   // hit opens beside them, so the next one is a tap away.
   const wide = useWide();
-  useEffect(() => setIndex(0), [query, kinds]);
+  useEffect(() => setIndex(0), [query, kinds, sender, content, from, to]);
   // Only ↑/↓ scroll the list, and only as far as the selected row needs.
   // Selecting by hover must not scroll: the list would move under the
   // pointer, which selects another row, which scrolls again.
@@ -66,7 +97,7 @@ export function SearchPalette() {
   const pick = (i: number) => {
     const h = hits[i];
     if (!h) return;
-    if (phone && wide && query.trim()) setUi({ searchDock: { query, kinds, index: i } });
+    if (phone && wide && (query.trim() || filter)) setUi({ searchDock: { query, kinds, index: i, filter } });
     openChat(h.chatId, { messageId: h.messageId });
   };
   return (
@@ -103,14 +134,37 @@ export function SearchPalette() {
           return (
             <button
               key={k.id}
+              disabled={!!filter}
               onClick={() => setKinds(on ? kinds.filter((x) => x !== k.id) : [...kinds, k.id])}
-              className={`h-[26px] rounded-full px-3 text-[12px] ${on ? "bg-line-green text-white" : "bg-field text-primary"}`}
+              className={`h-[26px] rounded-full px-3 text-[12px] disabled:opacity-40 ${on ? "bg-line-green text-white" : "bg-field text-primary"}`}
             >
               {k.label}
             </button>
           );
         })}
-        <span className="ml-auto text-[12px] text-secondary">{query.trim() ? `${hits.length} ผลลัพธ์` : "แชทล่าสุด"}</span>
+        <span className="ml-auto text-[12px] text-secondary">{query.trim() || filter ? `${hits.length} ผลลัพธ์` : "แชทล่าสุด"}</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 px-5 pb-2.5">
+        <select aria-label="ผู้ส่ง" value={sender} onChange={(e) => setSender(e.target.value)} className={picker}>
+          <option value="">ทุกคน</option>
+          <option value="me">คุณ</option>
+          {senders.map(([mid, p]) => (
+            <option key={mid} value={mid}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        <select aria-label="ประเภท" value={content} onChange={(e) => setContent(e.target.value)} className={picker}>
+          <option value="">ทุกประเภท</option>
+          {CONTENTS.map(([id, label]) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <input type="date" aria-label="ตั้งแต่วันที่" value={from} onChange={(e) => setFrom(e.target.value)} className={picker} />
+        <span className="text-[12px] text-secondary">ถึง</span>
+        <input type="date" aria-label="ถึงวันที่" value={to} onChange={(e) => setTo(e.target.value)} className={picker} />
       </div>
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto pb-2">
         {hits.map((h, i) => (
@@ -124,7 +178,7 @@ export function SearchPalette() {
             onClick={() => pick(i)}
           />
         ))}
-        {query.trim() && hits.length === 0 && (
+        {(query.trim() || filter) && hits.length === 0 && (
           <div className="grid place-items-center pt-16 text-center text-[13px] text-secondary">
             {error ? `ค้นหาไม่สำเร็จ: ${errorText(error)}` : isFetching ? <Spinner size={18} /> : "ไม่พบผลลัพธ์"}
           </div>

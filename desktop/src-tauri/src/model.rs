@@ -101,6 +101,17 @@ pub enum SearchKind {
     File,
 }
 
+/// Narrows a search to messages. `sender` is a mid, or "me"; `content` is a
+/// content type, or "LINK"; `since` and `until` are in milliseconds.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchFilter {
+    pub sender: Option<String>,
+    pub content: Option<String>,
+    pub since: Option<f64>,
+    pub until: Option<f64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchHit {

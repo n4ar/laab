@@ -1,4 +1,5 @@
 import { Menu } from "@base-ui/react/menu";
+import { useQuery } from "@tanstack/react-query";
 import { addPluginListener, invoke } from "@tauri-apps/api/core";
 import { Fragment, useEffect } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -233,6 +234,7 @@ async function exportChat(chat: Chat, name: (mid: string) => string) {
 export function useChatMenu(chat: Chat | undefined): MenuEntry[][] {
   const people = usePeople();
   const list = useChatList();
+  const kept = useQuery(q.kept).data?.includes(chat?.id ?? "") ?? false;
   if (!chat) return [];
   const group = isGroup(chat);
   const name = (mid: string) => list?.chats.find((c) => c.id === mid)?.name ?? people[mid]?.name ?? "สมาชิก";
@@ -278,7 +280,20 @@ export function useChatMenu(chat: Chat | undefined): MenuEntry[][] {
       { id: "files", title: "ไฟล์", icon: "doc", run: aux("media", "files") },
       { id: "links", title: "ลิงก์", icon: "link", run: aux("media", "links") },
     ],
-    [{ id: "export", title: "บันทึกแชท", icon: "square.and.arrow.down", run: () => run(exportChat(chat, name)) }],
+    [
+      {
+        id: "keep",
+        title: "เก็บไฟล์ของแชทนี้ไว้ถาวร",
+        icon: "archivebox",
+        checked: kept,
+        run: () =>
+          run(
+            api.setKept(chat.id, !kept).then(() => queryClient.invalidateQueries({ queryKey: q.kept.queryKey })),
+            kept ? "เลิกเก็บถาวรแล้ว" : "กำลังเก็บทีละไฟล์ เฉพาะตอนเปิด LAAB อยู่",
+          ),
+      },
+      { id: "export", title: "บันทึกแชท", icon: "square.and.arrow.down", run: () => run(exportChat(chat, name)) },
+    ],
     last,
   ];
 }

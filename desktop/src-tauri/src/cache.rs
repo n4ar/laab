@@ -1,6 +1,7 @@
 //! Cache housekeeping: the size limit on `cache/media`, clearing the cache,
 //! and plain copies of encrypted files for other apps.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -43,10 +44,25 @@ pub fn usage(state: &AppState) -> u64 {
         .sum()
 }
 
-/// Delete the least recently used media until it fits under `TARGET`.
-/// Messages that pointed at a deleted file download it again when opened.
+/// The file names (up to the first dot) of what kept chats hold.
+fn kept_names(state: &AppState) -> HashSet<String> {
+    let ids = state.store().kept_message_ids().unwrap_or_default();
+    ids.iter().map(|id| crate::media::safe_name(id)).collect()
+}
+
+/// Files in `cache/media` are named `<message id>.<anything>`.
+fn is_kept(path: &Path, kept: &HashSet<String>) -> bool {
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    kept.contains(name.split('.').next().unwrap_or(""))
+}
+
+/// Delete the least recently used media until it fits under `TARGET`; kept
+/// chats neither count nor go. Messages that pointed at a deleted file
+/// download it again when opened.
 pub fn trim(state: &AppState) -> Result<usize> {
-    let doomed = evictions(files(&state.paths.media()), LIMIT, TARGET);
+    let kept = kept_names(state);
+    let list = files(&state.paths.media()).into_iter().filter(|(p, _)| !is_kept(p, &kept)).collect();
+    let doomed = evictions(list, LIMIT, TARGET);
     let mut removed = 0;
     for path in &doomed {
         if std::fs::remove_file(path).is_ok() {
@@ -102,7 +118,23 @@ pub fn schedule_trim(state: &Arc<AppState>) {
     });
 }
 
-/// Delete every cached file and the paths the database kept to them.
+/// The user's "clear cache": everything but what kept chats hold.
+pub fn clear_unkept(state: &AppState) -> Result<()> {
+    let kept = kept_names(state);
+    for dir in [state.paths.media(), state.paths.avatars(), state.paths.stickers()] {
+        for (path, _) in files(&dir) {
+            if !is_kept(&path, &kept) && std::fs::remove_file(&path).is_ok() {
+                state.store().forget_file(&path.to_string_lossy())?;
+            }
+        }
+    }
+    clear_open_copies();
+    state.chats_changed();
+    Ok(())
+}
+
+/// Signing out: delete every cached file, kept or not, and the paths the
+/// database kept to them.
 pub fn clear(state: &AppState) -> Result<()> {
     for dir in [state.paths.media(), state.paths.avatars(), state.paths.stickers()] {
         for (path, _) in files(&dir) {
@@ -110,6 +142,7 @@ pub fn clear(state: &AppState) -> Result<()> {
         }
     }
     state.store().forget_all_files()?;
+    state.store().clear_kept()?;
     clear_open_copies();
     state.chats_changed();
     Ok(())
@@ -213,6 +246,14 @@ fn extension(mime: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keeps_a_kept_messages_files_by_name() {
+        let kept: HashSet<String> = ["123".to_string()].into();
+        assert!(is_kept(Path::new("/m/123.full"), &kept));
+        assert!(is_kept(Path::new("/m/123.report v2.pdf"), &kept));
+        assert!(!is_kept(Path::new("/m/1234.full"), &kept));
+    }
 
     #[test]
     fn names_cache_files_for_people() {

@@ -112,6 +112,15 @@ export interface McpSetup {
   env: [string, string][];
 }
 
+/** Narrows a search to messages. `sender` is a mid or "me"; `content` a
+ *  content type or "LINK"; `since` and `until` are milliseconds. */
+export interface SearchFilter {
+  sender?: string;
+  content?: string;
+  since?: number;
+  until?: number;
+}
+
 export interface SearchHit {
   kind: SearchKind;
   chatId: string;

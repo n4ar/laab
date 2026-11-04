@@ -1,6 +1,6 @@
 import { createStore, useStore } from "@tanstack/react-store";
 import type { Fold, Hinge } from "./nativeTabbar";
-import type { Message, SearchKind, Workspace } from "./types";
+import type { Message, SearchFilter, SearchKind, Workspace } from "./types";
 import type { ViewerPayload } from "./viewer";
 
 export type ChatFilter = "all" | "friends" | "groups" | "official" | `folder:${string}`;
@@ -73,7 +73,7 @@ export interface UiState {
   railPage: "chats" | "friends" | "add" | "more";
   /** ⌘K's results kept in the list column of the unfolded iPhone Duo, so
    *  each hit opens beside them; `index` is the hit shown in the chat. */
-  searchDock: { query: string; kinds: SearchKind[]; index: number } | null;
+  searchDock: { query: string; kinds: SearchKind[]; index: number; filter: SearchFilter | null } | null;
   /** The phone's photo/video viewer; the desktop opens a window instead. */
   gallery: ViewerPayload | null;
   /** The phone's file viewer (photos, videos, PDFs, other files). */
