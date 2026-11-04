@@ -7,6 +7,7 @@ import { Avatar } from "./Avatar";
 import { CalendarIcon } from "./Icons";
 import { Spinner } from "./kit";
 import { McpSheet } from "./McpSheet";
+import { MissedSheet } from "./MissedSheet";
 import { buttonClass, Sheet } from "./Sheet";
 
 const inputClass = "selectable h-9 rounded-md bg-field px-3 text-[14px] outline-none placeholder:text-secondary";
@@ -248,6 +249,9 @@ export function Sheets() {
       </Sheet>
       <Sheet open={sheet?.kind === "mcp"} onClose={close} className="h-[min(680px,calc(100vh-48px))] w-[min(760px,calc(100vw-48px))]">
         {sheet?.kind === "mcp" && <McpSheet onDone={close} />}
+      </Sheet>
+      <Sheet open={sheet?.kind === "missed"} onClose={close} className="h-[min(640px,calc(100vh-48px))] w-[520px]" title="แชทที่พลาด">
+        {sheet?.kind === "missed" && <MissedSheet onDone={close} />}
       </Sheet>
       <Sheet open={sheet?.kind === "coming-soon"} onClose={close} className="w-[400px]">
         {sheet?.kind === "coming-soon" && <ComingSoon onDone={close} />}

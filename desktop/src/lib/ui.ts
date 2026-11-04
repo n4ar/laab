@@ -66,6 +66,7 @@ export interface UiState {
     | { kind: "report"; messageId: string | null }
     | { kind: "mcp" }
     | { kind: "coming-soon"; feature: "calendar" }
+    | { kind: "missed" }
     | null;
   /** Someone's profile card; name and picture show while it loads. */
   profile: { mid: string; name?: string; picture?: string | null } | null;

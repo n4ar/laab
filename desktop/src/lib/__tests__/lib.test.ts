@@ -7,6 +7,7 @@ import { findHits, ranges } from "../inChatSearch";
 import { linkify, liffId } from "../links";
 import { adjacentChat, filterChats, folderName, groupRows, listPreview, splitAfterOpen, unreadTotal } from "../chatList";
 import { nextReaction, topTypes } from "../reactions";
+import { byImportance, missedChats, summarize } from "../missed";
 import { PEEK_FLAT, peekClarity, peekOpen } from "../peek";
 import { dayHeader, fullStamp, listLabel, reminderTimes } from "../time";
 import type { ChatList, Message } from "../types";
@@ -313,5 +314,27 @@ describe("reminderTimes", () => {
   it("rolls tomorrow over the end of the month", () => {
     const morning = reminderTimes(new Date(2026, 10, 30, 18)).slice(-1)[0].at;
     expect([morning.getMonth(), morning.getDate(), morning.getHours()]).toEqual([11, 1, 9]);
+  });
+});
+
+describe("missed chats", () => {
+  const chat = { id: "c1", name: "กลุ่ม", kind: "group", preview: "", lastActivity: 5, unread: 2, avatar: null, muted: false, picture: null, memberCount: 3 };
+  it("counts only the unread messages others sent", () => {
+    const m = summarize(chat, [
+      msg({ id: "1", text: "เก่าแล้ว", createdTime: 1, senderId: "old" }),
+      msg({ id: "2", text: "ฉันเอง", createdTime: 2, mine: true }),
+      msg({ id: "4", text: "ดู https://a.co", createdTime: 4, senderId: "b", mentionsMe: true }),
+      msg({ id: "3", contentType: "IMAGE", text: "", createdTime: 3, senderId: "a" }),
+    ]);
+    expect(m.senders).toEqual(["a", "b"]);
+    expect([m.photos, m.links, m.mentioned]).toEqual([1, 1, true]);
+    expect(m.latest).toBe("ดู https://a.co");
+  });
+  it("leaves out muted chats, and puts mentions first", () => {
+    const list = { chats: [chat, { ...chat, id: "c2", muted: true }] } as unknown as ChatList;
+    expect(missedChats(list).map((c) => c.id)).toEqual(["c1"]);
+    const plain = summarize({ ...chat, lastActivity: 9 }, []);
+    const called = summarize(chat, [msg({ id: "9", mentionsMe: true })]);
+    expect([plain, called].sort(byImportance)[0]).toBe(called);
   });
 });

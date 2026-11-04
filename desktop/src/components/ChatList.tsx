@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, errorText, useChatList, useSession } from "../lib/api";
 import { clickEndsDrag, isRecent, markRecent, moving, pressChat, useChatDrag } from "../lib/chatDrag";
 import { filterChats, folderName, folderOf, groupRows, isKeepMemo, type ListRow, listPreview } from "../lib/chatList";
+import { missedLine } from "../lib/missed";
 import { openChat } from "../lib/nav";
 import { phone } from "../lib/platform";
 import { listLabel } from "../lib/time";
@@ -30,6 +31,7 @@ import { Badge, Ctx, CtxItem, itemClass, popupClass, Separator, Spinner } from "
 
 export function ChatListColumn({ selected }: { selected: string | null }) {
   const list = useChatList();
+  const missed = missedLine(list);
   const filter = useUi((s) => s.filter);
   const sort = useUi((s) => s.sort);
   const query = useUi((s) => s.listQuery);
@@ -156,6 +158,15 @@ export function ChatListColumn({ selected }: { selected: string | null }) {
           </Menu.Root>
         )}
       </div>
+      {phone && !query && missed && (
+        <button
+          onClick={() => setUi({ sheet: { kind: "missed" } })}
+          className="mx-4 mb-2 flex shrink-0 items-center justify-between gap-2 rounded-[10px] bg-field px-3 py-2 text-left active:bg-row-selected"
+        >
+          <span className="text-[14px] font-medium">แชทที่พลาด</span>
+          <span className="truncate text-[13px] text-secondary">{missed} ›</span>
+        </button>
+      )}
       <div
         ref={scroller}
         tabIndex={0}
