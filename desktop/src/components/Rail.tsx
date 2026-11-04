@@ -80,7 +80,7 @@ export function Rail() {
       <div className="flex-1" />
       <RailButton
         title="ปฏิทิน"
-        disabled={!signedIn}
+        disabled={!me}
         onClick={() => api.openAuxWindow("calendar", ALL_CALENDARS, "ปฏิทิน").catch((e) => notice(errorText(e)))}
       >
         <CalendarIcon size={21} />
