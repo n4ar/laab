@@ -669,10 +669,7 @@ async fn ingest_live(state: &Arc<AppState>, line: &Arc<Line>, msg: Message) {
     {
         let _ = state.store().replace_reactions(&msg.id, &list);
     }
-    let (focused, active) = {
-        let f = state.focus.lock().unwrap();
-        (f.chat.as_deref() == Some(chat_id.as_str()), f.active)
-    };
+    let watching = state.focus.lock().unwrap().watching(&chat_id);
     // Update or create the chat row.
     let existing = state.store().chat(&chat_id).ok().flatten();
     let mut chat = match existing {
@@ -682,7 +679,7 @@ async fn ingest_live(state: &Arc<AppState>, line: &Arc<Line>, msg: Message) {
     if !known {
         chat.preview = convert::preview_line(&msg);
         chat.last_activity = chat.last_activity.max(msg.created_time);
-        if !msg.mine && !(focused && active) {
+        if !msg.mine && !watching {
             chat.unread += 1;
         }
     }
@@ -692,7 +689,7 @@ async fn ingest_live(state: &Arc<AppState>, line: &Arc<Line>, msg: Message) {
     if known {
         return;
     }
-    if focused && active && !msg.mine {
+    if watching && !msg.mine {
         let _ = line.chat(&chat_id).mark_as_read(&msg.id).await;
     }
     crate::notify::maybe_notify(state, &chat, &msg);

@@ -69,6 +69,7 @@ The same code builds as an iPhone app (Tauri 2 iOS; the Xcode project is in `src
 - Inner screen (unfolded) and landscape: two panes, the list on the left and the chat on the right. Folding or unfolding keeps the same chat open.
 - Long-press instead of right-click. A message's menu starts with a row of reactions. The composer has send, photo and file buttons (Return makes a new line). Photos, videos and PDFs open in the app.
 - Albums and notes, and photos, files and links, open as pages in the app instead of separate windows.
+- Two chats side by side on the inner screen when it is on its side: long-press a chat and pick **เปิดข้าง ๆ**. They meet at the fold, and both count as read while on screen. Touching one makes it the chat the system bars act on (the green line); opening another chat replaces that one. Upright, and on the cover screen, only that chat shows.
 - QR sign-in: on a phone that has LINE, **เปิดแอป LINE บนเครื่องนี้** (Open LINE on this device) opens the QR's link in LINE to confirm.
 
 ```bash

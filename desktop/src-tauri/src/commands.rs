@@ -135,6 +135,12 @@ pub fn set_focus(state: S<'_>, chat_id: Option<String>, active: bool) {
     f.active = active;
 }
 
+/// The second chat on screen, when the iPhone Duo shows two.
+#[tauri::command]
+pub fn set_focus_beside(state: S<'_>, chat_id: Option<String>) {
+    state.focus.lock().unwrap().beside = chat_id;
+}
+
 /// Opening a chat: clear unread, acknowledge, then fetch fresh history,
 /// read status and members in the background.
 #[tauri::command]

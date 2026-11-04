@@ -5,7 +5,7 @@ import { callBubbleLabel, chatEventText, noticeFor, readCall, readChatEvent, isB
 import { buildRows } from "../timeline";
 import { findHits, ranges } from "../inChatSearch";
 import { linkify, liffId } from "../links";
-import { adjacentChat, filterChats, folderName, groupRows, listPreview, unreadTotal } from "../chatList";
+import { adjacentChat, filterChats, folderName, groupRows, listPreview, splitAfterOpen, unreadTotal } from "../chatList";
 import { nextReaction, topTypes } from "../reactions";
 import { PEEK_FLAT, peekClarity, peekOpen } from "../peek";
 import { dayHeader, fullStamp, listLabel } from "../time";
@@ -289,5 +289,17 @@ describe("peekOpen", () => {
     expect(peekOpen({ status: "partial", angle: 120 }, false)).toBe(false);
     expect(peekOpen({ status: "open", angle: 178 }, true)).toBe(false);
     expect(peekOpen(null, true)).toBe(false);
+  });
+});
+
+describe("splitAfterOpen", () => {
+  const split = { left: "a", right: "b" };
+  it("replaces the chat used last", () => {
+    expect(splitAfterOpen(split, "b", "c")).toEqual({ left: "a", right: "c" });
+    expect(splitAfterOpen(split, "a", "c")).toEqual({ left: "c", right: "b" });
+  });
+  it("keeps the panes when the chat is already on screen, or there is no split", () => {
+    expect(splitAfterOpen(split, "a", "b")).toBe(split);
+    expect(splitAfterOpen(null, "a", "b")).toBeNull();
   });
 });

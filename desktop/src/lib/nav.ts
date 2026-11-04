@@ -1,5 +1,6 @@
 import { router } from "../router";
 import { errorText } from "./api";
+import { splitAfterOpen } from "./chatList";
 import { unfoldChat } from "./fold";
 import { phone } from "./platform";
 import { LAST_CHAT_KEY, notice, setUi, ui } from "./ui";
@@ -7,13 +8,47 @@ import { LAST_CHAT_KEY, notice, setUi, ui } from "./ui";
 /** Open a chat in the main window, optionally scrolled to a message. Unfolds
  *  the conversation pane if it was folded. */
 export function openChat(chatId: string, opts: { messageId?: string | null; focusComposer?: boolean } = {}) {
-  setUi({ focusMessageId: opts.messageId ?? null, searchOpen: false, preview: null });
+  setUi({
+    focusMessageId: opts.messageId ?? null,
+    searchOpen: false,
+    preview: null,
+    split: splitAfterOpen(ui.state.split, localStorage.getItem(LAST_CHAT_KEY), chatId),
+    splitList: false,
+  });
   unfoldChat().catch((e) => notice(errorText(e)));
   if (ui.state.peek === chatId) setUi({ peek: null });
   localStorage.setItem(LAST_CHAT_KEY, chatId);
   router.navigate({ to: "/chat/$chatId", params: { chatId } });
   // On a phone, focusing the composer would pop the keyboard over the chat.
   if (opts.focusComposer !== false && !phone) setUi({ composerFocus: Date.now() });
+}
+
+/** The chat that "เปิดข้าง ๆ" would join, if there is one. */
+export const besideOf = (chatId: string) => {
+  const last = localStorage.getItem(LAST_CHAT_KEY);
+  return last && last !== chatId && !ui.state.split ? last : null;
+};
+
+/** Show a chat next to the open one. */
+export function openBeside(chatId: string) {
+  const left = besideOf(chatId);
+  if (left) setUi({ split: { left, right: chatId } });
+  openChat(chatId, { focusComposer: false });
+}
+
+/** A touch in one of two chats makes it the one the system's bars act on. */
+export function touchPane(chatId: string) {
+  if (localStorage.getItem(LAST_CHAT_KEY) === chatId) return;
+  localStorage.setItem(LAST_CHAT_KEY, chatId);
+  router.navigate({ to: "/chat/$chatId", params: { chatId }, replace: true });
+}
+
+/** Close one of two chats; the other goes back beside the list. */
+export function closePane(chatId: string) {
+  const s = ui.state.split;
+  if (!s) return;
+  setUi({ split: null });
+  openChat(s.left === chatId ? s.right : s.left, { focusComposer: false });
 }
 
 /** The phone opens LINE's separate albums/notes and media windows as pages. */
@@ -34,6 +69,7 @@ export function goBack() {
 
 /** Escape with nothing else open closes the chat. */
 export function closeChat() {
+  setUi({ split: null, splitList: false });
   localStorage.removeItem(LAST_CHAT_KEY);
   router.navigate({ to: "/" });
 }

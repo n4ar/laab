@@ -32,7 +32,7 @@ pub fn should_notify(
     if msg.created_time > 0.0 && msg.created_time < launched_ms - 30_000.0 {
         return false;
     }
-    if focus.active && focus.chat.as_deref() == Some(chat.id.as_str()) {
+    if focus.watching(&chat.id) {
         return false;
     }
     !chat.muted || msg.mentions_me
@@ -201,6 +201,7 @@ mod tests {
         let away = Focus {
             chat: Some("c2".into()),
             active: true,
+            ..Default::default()
         };
         let left = Message {
             content_type: "CHATEVENT".into(),
@@ -221,17 +222,26 @@ mod tests {
         let away = Focus {
             chat: Some("c2".into()),
             active: true,
+            ..Default::default()
         };
         assert!(should_notify(&msg(), &chat, 10_000_000.0, &away, false));
         assert!(!should_notify(&msg(), &chat, 10_000_000.0, &away, true));
         let here = Focus {
             chat: Some("c1".into()),
             active: true,
+            ..Default::default()
         };
         assert!(!should_notify(&msg(), &chat, 10_000_000.0, &here, false));
+        let beside = Focus {
+            chat: Some("c2".into()),
+            beside: Some("c1".into()),
+            active: true,
+        };
+        assert!(!should_notify(&msg(), &chat, 10_000_000.0, &beside, false));
         let background = Focus {
             chat: Some("c1".into()),
             active: false,
+            ..Default::default()
         };
         assert!(should_notify(
             &msg(),

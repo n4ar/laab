@@ -32,7 +32,16 @@ pub struct AppState {
 #[derive(Debug, Default, Clone)]
 pub struct Focus {
     pub chat: Option<String>,
+    /// The second chat on screen, when the iPhone Duo shows two.
+    pub beside: Option<String>,
     pub active: bool,
+}
+
+impl Focus {
+    /// The chat is on screen and the app is in front.
+    pub fn watching(&self, chat_id: &str) -> bool {
+        self.active && [&self.chat, &self.beside].iter().any(|c| c.as_deref() == Some(chat_id))
+    }
 }
 
 pub fn now_ms() -> f64 {
@@ -63,6 +72,7 @@ impl AppState {
             line: tokio::sync::RwLock::new(None),
             focus: Mutex::new(Focus {
                 chat: None,
+                beside: None,
                 active: true,
             }),
             notified: Mutex::new(HashSet::new()),

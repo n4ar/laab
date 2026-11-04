@@ -5,6 +5,8 @@ import type { ViewerPayload } from "./viewer";
 
 export type ChatFilter = "all" | "friends" | "groups" | "official" | `folder:${string}`;
 export type ChatSort = "recent" | "unread";
+/** Two chats side by side on the iPhone Duo's inner screen. */
+export type Split = { left: string; right: string };
 
 const saved = <T>(key: string, fallback: T): T => {
   try {
@@ -91,6 +93,10 @@ export interface UiState {
   /** The chat's card drawn for a moment for the long-press menu to show
    *  (see `answerChatMenu`). */
   menuCard: string | null;
+  /** The two chats on screen; the route's chat is the one used last. */
+  split: Split | null;
+  /** The chat list drawn over two chats, which leave it no room of its own. */
+  splitList: boolean;
   /** The chat shown beside the list without telling LINE it was read. */
   preview: string | null;
   /** The chat picked on the iPhone Duo's cover screen, shown once the device
@@ -144,6 +150,8 @@ export const ui = createStore<UiState>({
   chatSearch: 0,
   chatMenuOpen: false,
   menuCard: null,
+  split: saved("splitChats", null),
+  splitList: false,
   preview: null,
   peek: null,
   hinge: null,
@@ -156,6 +164,7 @@ export function setUi(patch: Partial<UiState>) {
   ui.setState((s) => ({ ...s, ...patch }));
   if (patch.listWidth != null) localStorage.setItem("chatListWidth", JSON.stringify(patch.listWidth));
   if (patch.openFolders != null) localStorage.setItem("openFolders", JSON.stringify(patch.openFolders));
+  if (patch.split !== undefined) localStorage.setItem("splitChats", JSON.stringify(patch.split));
   if (patch.developerMode != null) localStorage.setItem("developerMode", JSON.stringify(patch.developerMode));
 }
 

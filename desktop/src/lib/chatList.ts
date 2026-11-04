@@ -1,5 +1,5 @@
 import type { Chat, ChatList, Workspace } from "./types";
-import type { ChatFilter, ChatSort } from "./ui";
+import type { ChatFilter, ChatSort, Split } from "./ui";
 
 export const isGroupId = (id: string) => id.startsWith("c") || id.startsWith("r");
 export const isGroup = (c: Pick<Chat, "id" | "kind">) => c.kind === "group" || isGroupId(c.id);
@@ -84,6 +84,12 @@ export function adjacentChat(ids: string[], current: string | null, step: 1 | -1
   if (i < 0) return step === 1 ? ids[0] : ids[ids.length - 1];
   const j = i + step;
   return j < 0 || j >= ids.length ? null : ids[j];
+}
+
+/** Opening a chat while two are on screen replaces the one used last. */
+export function splitAfterOpen(split: Split | null, last: string | null, chatId: string): Split | null {
+  if (!split || chatId === split.left || chatId === split.right) return split;
+  return last === split.right ? { ...split, right: chatId } : { ...split, left: chatId };
 }
 
 export const unreadLabel = (n: number) => (n > 999 ? "999+" : String(n));

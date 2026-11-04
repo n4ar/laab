@@ -54,6 +54,7 @@ export const api = {
   reads: (chatId: string) => invoke<Record<string, string>>("reads", { chatId }),
   members: (chatId: string, force = false) => invoke<ChatMember[]>("members", { chatId, force }),
   setFocus: (chatId: string | null, active: boolean) => invoke<void>("set_focus", { chatId, active }),
+  setFocusBeside: (chatId: string | null) => invoke<void>("set_focus_beside", { chatId }),
   openChat: (chatId: string) => invoke<void>("open_chat", { chatId }),
   markRead: (chatId: string) => invoke<void>("mark_read", { chatId }),
   refresh: (full = true) => invoke<void>("refresh", { full }),

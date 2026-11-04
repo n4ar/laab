@@ -270,6 +270,7 @@ pub fn run() {
             commands::reads,
             commands::members,
             commands::set_focus,
+            commands::set_focus_beside,
             commands::open_chat,
             commands::mark_read,
             commands::refresh,

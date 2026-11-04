@@ -4,8 +4,8 @@ import { Fragment, useEffect } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { api, errorText, messageLimit, q, queryClient, useChatList, usePeople } from "../lib/api";
 import { folderName, folderOf, isGroup } from "../lib/chatList";
-import { closeChat, openChat } from "../lib/nav";
-import { phone } from "../lib/platform";
+import { besideOf, closeChat, openBeside, openChat } from "../lib/nav";
+import { phone, twoChatsFit } from "../lib/platform";
 import { clock, dayHeader } from "../lib/time";
 import type { Chat, ChatList } from "../lib/types";
 import { findEntry, type MenuEntry } from "../lib/nativeTabbar";
@@ -98,6 +98,9 @@ function rowMenu(chat: Chat, list: ChatList | undefined, peeked: boolean): MenuE
       peeked
         ? { id: "unpeek", title: "เลิกแอบดู", icon: "eye.slash", run: () => pickPeek(null) }
         : { id: "peek", title: "ดูโดยไม่อ่าน", icon: "eye", run: () => (onCoverScreen() ? pickPeek(chat.id) : showPreview(chat.id)) },
+      ...(twoChatsFit() && besideOf(chat.id)
+        ? [{ id: "beside", title: "เปิดข้าง ๆ", icon: "rectangle.split.2x1", run: () => openBeside(chat.id) }]
+        : []),
       ...(phone ? [] : [{ id: "window", title: "เปิดในหน้าต่างใหม่", run: () => run(api.openChatWindow(chat.id, chat.name)) }]),
     ],
     [

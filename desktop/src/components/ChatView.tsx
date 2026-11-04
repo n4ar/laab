@@ -5,7 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, errorText, messageLimit, q, queryClient, setMessageLimit, useChatList, usePeople, useSession } from "../lib/api";
 import { adjacentChat, isGroup, isKeepMemo, unreadTotal } from "../lib/chatList";
 import { findHits } from "../lib/inChatSearch";
@@ -80,7 +80,17 @@ export function useNames(members: ChatMember[] | undefined) {
   return { name, picture };
 }
 
-export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
+/** `pane` marks one of two chats on screen; only the one in use answers the
+ *  system's bars, and the header gets `actions`. */
+export function ChatView({
+  chatId,
+  main,
+  pane,
+}: {
+  chatId: string;
+  main: boolean;
+  pane?: { active: boolean; actions: ReactNode };
+}) {
   const list = useChatList();
   const chat = list?.chats.find((c) => c.id === chatId);
   const session = useSession();
@@ -108,7 +118,8 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
   // notes and ⋮, so the header keeps only the title.
   const sideBar = useUi((s) => s.sideBar);
   const side = phone && !!sideBar;
-  const menuOpen = useUi((s) => s.chatMenuOpen);
+  const inUse = pane?.active ?? true;
+  const menuOpen = useUi((s) => s.chatMenuOpen) && inUse;
   const searchRequest = useUi((s) => s.chatSearch);
   const me = session?.profile?.mid ?? "";
   const signedIn = session?.state === "signed_in";
@@ -117,21 +128,25 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
   // settles on a chat for 150 ms, so arrow-key browsing stays fast.
   useEffect(() => {
     if (main) api.setFocus(chatId, document.hasFocus());
+    else if (pane) api.setFocusBeside(chatId);
     const t = setTimeout(() => api.openChat(chatId).catch(() => {}), 150);
     setStickers(false);
     setSearch({ open: false, query: "", debounced: "", index: 0 });
     return () => clearTimeout(t);
   }, [chatId, main]);
   useEffect(() => {
-    if (!main) return;
+    if (!main && !pane) return;
     const off = listen<boolean>("app-active", (e) => {
-      api.setFocus(chatId, e.payload);
+      if (main) api.setFocus(chatId, e.payload);
       if (e.payload) api.markRead(chatId).catch(() => {});
     });
     return () => {
       off.then((f) => f());
-      api.setFocus(null, document.hasFocus());
+      if (main) api.setFocus(null, document.hasFocus());
+      else api.setFocusBeside(null);
     };
+    // A view stays a pane, or not, for as long as it lives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId, main]);
 
   // Members are needed for names in groups.
@@ -174,7 +189,7 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
   useEffect(() => {
     if (searchRequest === handledSearch.current) return;
     handledSearch.current = searchRequest;
-    openSearch();
+    if (inUse) openSearch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchRequest]);
   useHotkey("Mod+G", () => search.open && step(1));
@@ -218,7 +233,7 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
   }, [chatId]);
 
   useEffect(() => {
-    if (!main && chat)
+    if (!main && !pane && chat)
       getCurrentWindow()
         .setTitle(chat.name)
         .catch(() => {});
@@ -265,6 +280,7 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
           </button>
         )}
         <div className="flex-1" />
+        {pane?.actions}
         {!side && (
           <button
             title="ค้นหาในแชท ⌘F"
@@ -307,7 +323,7 @@ export function ChatView({ chatId, main }: { chatId: string; main: boolean }) {
           </Menu.Root>
         )}
       </header>
-      {group && !search.open && <Announcements chatId={chatId} name={name} />}
+      {group && !search.open && <Announcements chatId={chatId} name={name} active={inUse} />}
       {search.open && (
         // LINE for Mac: a bordered field with the count and arrows inside,
         // then close, in the announcement bar's place. Opened with ⌘F, so it

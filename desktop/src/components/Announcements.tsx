@@ -7,7 +7,7 @@ import { listLabel } from "../lib/time";
 import { ChevronIcon, MegaphoneIcon } from "./Icons";
 
 /** Pinned group announcements, shown over the timeline like LINE. */
-export function Announcements({ chatId, name }: { chatId: string; name: (mid: string) => string }) {
+export function Announcements({ chatId, name, active = true }: { chatId: string; name: (mid: string) => string; active?: boolean }) {
   // Wait for the LINE session; asking earlier caches an empty list.
   const state = useSession()?.state;
   const ready = state === "signed_in" || state === "demo";
@@ -17,7 +17,8 @@ export function Announcements({ chatId, name }: { chatId: string; name: (mid: st
     staleTime: 60_000,
     enabled: ready,
   });
-  const open = useUi((s) => s.announcementsOpen);
+  // With two chats on screen, only the one in use opens its list.
+  const open = useUi((s) => s.announcementsOpen) && active;
   const setOpen = (v: boolean | ((o: boolean) => boolean)) =>
     setUi({ announcementsOpen: typeof v === "function" ? v(ui.state.announcementsOpen) : v });
   const dismissKey = `announcementDismissed:${chatId}`;

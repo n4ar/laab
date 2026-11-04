@@ -18,6 +18,16 @@ const subscribe = (on: () => void) => {
 };
 export const useWide = () => useSyncExternalStore(subscribe, () => wideQuery.matches);
 
+/** Two chats side by side need the iPhone Duo's inner screen on its side
+ *  (951 pt); upright (669 pt) each would be too narrow. */
+const twoChatsQuery = window.matchMedia("(min-width: 800px)");
+export const twoChatsFit = () => phone && twoChatsQuery.matches;
+export const useTwoChats = () =>
+  useSyncExternalStore((on) => {
+    twoChatsQuery.addEventListener("change", on);
+    return () => twoChatsQuery.removeEventListener("change", on);
+  }, twoChatsFit);
+
 /** WKWebView keeps its layout size when the keyboard opens and scrolls the
  *  page instead. Size the app to the visible part and keep it in place, and
  *  mark the root while the keyboard is up so bottom bars drop the home

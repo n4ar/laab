@@ -5,10 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, errorText, q, useChatList, useLoginPage, useSession } from "../lib/api";
 import { isGroup, unreadTotal } from "../lib/chatList";
-import { closeChat, openChat } from "../lib/nav";
+import { closeChat, closePane, openChat, touchPane } from "../lib/nav";
 import { findEntry, type MenuEntry, type SideButton, useNativeTabbar } from "../lib/nativeTabbar";
 import { peekOpen } from "../lib/peek";
-import { ios, useWide } from "../lib/platform";
+import { ios, useTwoChats, useWide } from "../lib/platform";
 import { LAST_CHAT_KEY, notice, pushDismiss, setUi, ui, useUi } from "../lib/ui";
 import { Avatar } from "./Avatar";
 import { ChatListColumn } from "./ChatList";
@@ -18,7 +18,7 @@ import { ChatView } from "./ChatView";
 import { ConfirmDialog, Sheets } from "./Dialogs";
 import { FileViewer } from "./FileViewer";
 import { FolderDialog } from "./FolderDialog";
-import { BookmarkIcon, BubbleIcon, BubblesIcon, MoreIcon, PersonIcon, PersonPlusIcon } from "./Icons";
+import { BookmarkIcon, BubbleIcon, BubblesIcon, CloseIcon, MoreIcon, PersonIcon, PersonPlusIcon } from "./Icons";
 import { LiffConsent, SharePicker } from "./LiffDialogs";
 import { AddFriendPage, FriendsPage } from "./ListPages";
 import { LoginView } from "./LoginView";
@@ -98,11 +98,49 @@ export function PhoneLayout({ chatId }: { chatId: string | null }) {
   // after it, so neither runs into the crease.
   const fold = useUi((s) => s.fold);
   const book = wide && fold && fold.height > fold.width ? fold : null;
+  const twoChats = useTwoChats();
+  const split = useUi((s) => s.split);
+  const splitList = useUi((s) => s.splitList);
+  const onScreen = (id: string) => !!list?.chats.some((c) => c.id === id);
+  const both =
+    twoChats && split && !preview && !searchDock && (chatId === split.left || chatId === split.right) && onScreen(split.left) && onScreen(split.right)
+      ? split
+      : null;
 
   if (loginPage) {
     return (
       <div className="safe-top safe-bottom safe-x h-full bg-list">
         <LoginView />
+        {overlays}
+      </div>
+    );
+  }
+
+  if (both) {
+    return (
+      <div className="safe-x relative flex h-full bg-chat">
+        {/* From the screen's edge, so the panes meet at the fold whichever
+            side iOS's vertical bar is on. */}
+        <div
+          className="h-full shrink-0 border-r border-separator"
+          style={{ width: `calc(${book ? `${book.x}px` : "50vw"} - env(safe-area-inset-left))` }}
+        >
+          <ChatPane key={both.left} chatId={both.left} active={chatId === both.left} main />
+        </div>
+        <div className="min-w-0 flex-1" style={book ? { paddingLeft: book.width } : undefined}>
+          <ChatPane key={both.right} chatId={both.right} active={chatId === both.right} main={false} />
+        </div>
+        {splitList && (
+          <>
+            <div className="absolute inset-0 z-30 bg-black/25" onClick={() => setUi({ splitList: false })} />
+            <div
+              className="absolute inset-y-0 z-30 w-[clamp(280px,42vw,360px)] border-r border-separator"
+              style={{ left: "env(safe-area-inset-left)" }}
+            >
+              <Home selected={chatId} />
+            </div>
+          </>
+        )}
         {overlays}
       </div>
     );
@@ -141,6 +179,36 @@ export function PhoneLayout({ chatId }: { chatId: string | null }) {
         <AnimatePresence initial={false}>{chatId && <PushedChat key="chat" chatId={chatId} />}</AnimatePresence>
       </div>
       {overlays}
+    </div>
+  );
+}
+
+/** One of two chats on screen. A touch anywhere in it makes it the chat in
+ *  use, marked by the green line, which the system's bars act on. */
+function ChatPane({ chatId, active, main }: { chatId: string; active: boolean; main: boolean }) {
+  const button = "grid h-11 w-10 shrink-0 place-items-center text-primary";
+  return (
+    <div className="relative h-full" onPointerDownCapture={() => touchPane(chatId)}>
+      {active && <div className="absolute inset-x-0 top-0 z-10 h-0.5 bg-line-green" />}
+      <ChatView
+        chatId={chatId}
+        main={main}
+        pane={{
+          active,
+          actions: (
+            <>
+              {main && (
+                <button title="รายการแชท" onClick={() => setUi({ splitList: true })} className={button}>
+                  <BubblesIcon size={21} />
+                </button>
+              )}
+              <button title="ปิดแชทนี้" onClick={() => closePane(chatId)} className={button}>
+                <CloseIcon size={20} />
+              </button>
+            </>
+          ),
+        }}
+      />
     </div>
   );
 }
@@ -284,9 +352,9 @@ function useSystemTabBar({ chatId, signedOut, wide }: { chatId: string | null; s
       : null,
     {
       // A tab leaves docked search results for that tab's page.
-      onSelect: (id) => setUi({ railPage: id as typeof page, searchDock: null }),
+      onSelect: (id) => setUi({ railPage: id as typeof page, searchDock: null, splitList: true }),
       onAction: (id) => {
-        if (id.startsWith("tab:")) setUi({ railPage: id.slice(4) as typeof page, searchDock: null });
+        if (id.startsWith("tab:")) setUi({ railPage: id.slice(4) as typeof page, searchDock: null, splitList: true });
         else if (id === "back") closeChat();
         else if (id === "search") setUi({ chatSearch: Date.now() });
         else if (id.startsWith("menu:")) findEntry(menu, id.slice(5))?.run?.();
