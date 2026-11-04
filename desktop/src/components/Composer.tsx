@@ -251,6 +251,11 @@ export const Composer = forwardRef<
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     const plain = !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey;
+    if (pendingImage && e.key === "Enter" && (plain || (e.metaKey && !e.shiftKey))) {
+      e.preventDefault();
+      void send();
+      return;
+    }
     if (pickerOpen && candidates.length && plain) {
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
