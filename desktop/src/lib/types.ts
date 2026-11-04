@@ -180,6 +180,30 @@ export interface NotePost {
   commentCount: number;
 }
 
+/** An event on a chat's LINE Calendar. Times are epoch ms; an all-day
+ *  event ends at midnight after its last day, in `timezone`. */
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  start: number;
+  end: number;
+  allDay: boolean;
+  timezone: string;
+  location: string;
+  url: string;
+  description: string;
+  /** Mid of who made it. */
+  creator: string;
+  /** LINE's client_updated_at, sent back on edit and delete. */
+  updatedAt: number;
+  editable: boolean;
+}
+
+export type CalendarEventInput = Pick<
+  CalendarEvent,
+  "title" | "start" | "end" | "allDay" | "timezone" | "location" | "url" | "description"
+>;
+
 export interface Album {
   id: string;
   title: string;

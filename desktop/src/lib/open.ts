@@ -5,9 +5,11 @@ import { notice, setUi } from "./ui";
 
 /** LIFF links open as LIFF apps; everything else in the browser. */
 export async function openUrl(url: string, chatId: string | null = null) {
-  // LINE Calendar has no web version worth opening; say it's coming instead.
+  // LINE Calendar links don't show the calendar in a browser; open the
+  // chat's calendar window instead.
   if (/^https?:\/\/line\.me\/R\/calendar(\/|\?|$)/i.test(url)) {
-    setUi({ sheet: { kind: "coming-soon", feature: "calendar" } });
+    if (chatId) await api.openAuxWindow("calendar", chatId, "").catch((e) => notice(errorText(e)));
+    else notice("เปิดปฏิทินได้จากเมนู ⋮ ของแชท");
     return;
   }
   if (liffId(url)) {

@@ -1,14 +1,17 @@
 //! Actions line-rs supports beyond messaging: unsend, edit, translate, chat
 //! hide/history/pin, announcements, blocking, friends and groups by link,
-//! Keep Memo, group notes and albums. Ported from laab-gpui.
+//! Keep Memo, group notes and albums (ported from laab-gpui), and LINE
+//! Calendar.
 //!
 //! Some come from line-rs's static reverse engineering of LINE 26.5 and are
 //! not verified against the live server: edit, translate, server pin, and
-//! creating, renaming or deleting albums.
+//! creating, renaming or deleting albums. Nor is any of LINE Calendar, which
+//! line-rs reaches over gRPC with field numbers from LINE for Android 26.11.
 
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow, bail};
+use line_rs::client::calendar::{EventInput, EventTarget, new_event_id};
 use line_rs::link::LineLink;
 use line_rs::rest::translate::TranslateText;
 use line_rs::service::moa::{DownloadPhotoOptions, GetAlbumsOptions, GetPhotosOptions};
@@ -644,6 +647,153 @@ pub async fn delete_note(state: &Arc<AppState>, chat_id: &str, post_id: &str) ->
         .delete_post(chat_id, post_id)
         .await?;
     check_timeline(reply.code, &reply.message)
+}
+
+// -- calendar ---------------------------------------------------------------
+
+/// An event on a chat's LINE Calendar. Times are epoch milliseconds.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarEvent {
+    pub id: String,
+    pub title: String,
+    pub start: i64,
+    pub end: i64,
+    pub all_day: bool,
+    /// IANA zone the event was made in; all-day dates read in it.
+    pub timezone: String,
+    pub location: String,
+    pub url: String,
+    pub description: String,
+    pub creator: String,
+    /// LINE's `client_updated_at`; an edit or delete must send a later one.
+    pub updated_at: i64,
+    /// False for events LINE Calendar won't let anyone edit (made elsewhere).
+    pub editable: bool,
+}
+
+/// What the event form sends for a new or edited event.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarEventInput {
+    pub title: String,
+    pub start: i64,
+    pub end: i64,
+    pub all_day: bool,
+    pub timezone: String,
+    pub location: String,
+    pub url: String,
+    pub description: String,
+}
+
+impl CalendarEventInput {
+    fn to_line(&self) -> EventInput {
+        EventInput {
+            title: self.title.trim().to_string(),
+            start_time: self.start,
+            end_time: self.end,
+            timezone: self.timezone.clone(),
+            is_all_day: self.all_day,
+            location: self.location.trim().to_string(),
+            url: self.url.trim().to_string(),
+            description: self.description.trim_end().to_string(),
+            color_id: 0,
+        }
+    }
+}
+
+/// The events of one chat's calendar, soonest first.
+pub async fn calendar_events(state: &Arc<AppState>, chat_id: &str) -> Result<Vec<CalendarEvent>> {
+    let l = line(state).await?;
+    let events = l
+        .client
+        .base
+        .list_events_stream(EventTarget::Chat(chat_id), 0)
+        .await?;
+    let mut out: Vec<CalendarEvent> = events
+        .into_iter()
+        .filter(|e| !e.is_deleted)
+        .map(|e| CalendarEvent {
+            id: e.id,
+            title: e.title,
+            start: e.start_time,
+            end: e.end_time,
+            all_day: e.is_all_day,
+            timezone: e.timezone,
+            location: e.location,
+            url: e.url,
+            description: e.description,
+            creator: e.creator_id,
+            updated_at: e.client_updated_at,
+            editable: e.is_editable_in_line_calendar,
+        })
+        .collect();
+    out.sort_by_key(|e| (e.start, e.end));
+    Ok(out)
+}
+
+/// Adds an event to a chat's calendar. `notify` posts LINE's "event
+/// created" card in the chat, as the app's switch does.
+pub async fn create_calendar_event(
+    state: &Arc<AppState>,
+    chat_id: &str,
+    event: &CalendarEventInput,
+    notify: bool,
+) -> Result<()> {
+    let l = line(state).await?;
+    let id = new_event_id();
+    l.client
+        .base
+        .create_event(
+            EventTarget::Chat(chat_id),
+            &id,
+            &event.to_line(),
+            Some(notify),
+        )
+        .await?;
+    Ok(())
+}
+
+pub async fn update_calendar_event(
+    state: &Arc<AppState>,
+    chat_id: &str,
+    event_id: &str,
+    updated_at: i64,
+    event: &CalendarEventInput,
+    notify: bool,
+) -> Result<()> {
+    let l = line(state).await?;
+    l.client
+        .base
+        .update_event(
+            EventTarget::Chat(chat_id),
+            event_id,
+            &event.to_line(),
+            updated_at,
+            Some(notify),
+        )
+        .await?;
+    Ok(())
+}
+
+pub async fn delete_calendar_event(
+    state: &Arc<AppState>,
+    chat_id: &str,
+    event_id: &str,
+    updated_at: i64,
+    notify: bool,
+) -> Result<()> {
+    let l = line(state).await?;
+    l.client
+        .base
+        .delete_event(
+            EventTarget::Chat(chat_id),
+            event_id,
+            updated_at,
+            Some(notify),
+        )
+        .await?;
+    Ok(())
 }
 
 // -- albums -----------------------------------------------------------------
