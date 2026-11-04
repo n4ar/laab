@@ -258,6 +258,8 @@ const ERROR_CODES: Record<string, string> = {
 };
 
 export function errorText(e: unknown): string {
-  const text = typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
+  // Native plugins reject with a plain `{ message }`.
+  const message = typeof e === "object" && e !== null ? (e as { message?: unknown }).message : null;
+  const text = typeof e === "string" ? e : typeof message === "string" ? message : String(e);
   return ERROR_CODES[text] ?? text;
 }
